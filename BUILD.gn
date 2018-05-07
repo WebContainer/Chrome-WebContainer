@@ -1,0 +1,18 @@
+import("//mojo/public/tools/bindings/mojom.gni")
+
+executable("groundwater") {
+  sources = [
+    "main.cpp",
+  ]
+  deps = [
+    "//base",
+    "//mojo/edk",
+    ":groundwater_mojo",
+  ]
+}
+
+mojom("groundwater_mojo") {
+  sources = [
+      "groundwater.mojom",
+  ]
+}

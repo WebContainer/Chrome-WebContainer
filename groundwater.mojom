@@ -1,0 +1,18 @@
+module groundwater;
+
+struct MyData {
+  int64 value;
+};
+
+interface Groundwater {
+    Log(string message);
+};
+
+struct Socket {
+  int64 fd;
+};
+
+interface GroundwaterSocket {
+  [Sync]
+  Socket() => (Socket result);
+};
