@@ -1,3 +1,12 @@
+# Setup
+
+```
+cd $CHROME_SRC
+git clone https://github.com/groundwater/chrome-groundwater.git groundwater
+gn build out/Default
+ninja -C out/Default groundwater
+```
+
 # GOAL
 
 1. WASM binary
