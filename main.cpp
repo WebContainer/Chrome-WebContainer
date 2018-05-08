@@ -101,7 +101,7 @@ int main() {
   // base::ProcessHandle child_handle =
       // LaunchCoolChildProcess(channel.PassClientHandle());
 
-  mojo::ScopedMessagePipeHandle my_pipe = invitation.AttachMessagePipe("pretty_cool_pipe");
+  mojo::ScopedMessagePipeHandle primordial_pipe = invitation.AttachMessagePipe("pretty_cool_pipe");
 
   // Launch Child Process
   base::CommandLine::StringVector args = std::vector<std::string> {std::string{"./out/Default/mocker-client"}};
@@ -111,6 +111,7 @@ int main() {
   channel.PrepareToPassClientHandleToChildProcess(&command_line, &options.fds_to_remap);
   
   base::Process p = base::LaunchProcess(command_line, options);
+  DCHECK(p.IsValid());
 
   // At this point it's safe for |invitation| to go out of scope and nothing
   // will break.
@@ -121,8 +122,18 @@ int main() {
       channel.PassServerHandle()
     )
   );
+
+  const char* kMessage = "groundwater";
+  mojo::WriteMessageRaw(primordial_pipe.get(),
+      static_cast<const void*>(kMessage),
+      strlen(kMessage) + 1,
+      nullptr,
+      0,
+      MOJO_WRITE_MESSAGE_FLAG_NONE);
   
   std::cout << "server" << std::endl;
+
+  p.WaitForExit(nullptr);
 
   return 0;
 }
