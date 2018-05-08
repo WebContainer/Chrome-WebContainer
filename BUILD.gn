@@ -1,8 +1,26 @@
 import("//mojo/public/tools/bindings/mojom.gni")
 
-executable("groundwater") {
+group("groundwater") {
+  deps = [
+    ":mocker-server",
+    ":mocker-client",
+  ]
+}
+
+executable("mocker-server") {
   sources = [
     "main.cpp",
+  ]
+  deps = [
+    "//base",
+    "//mojo/edk",
+    ":groundwater_mojo",
+  ]
+}
+
+executable("mocker-client") {
+  sources = [
+    "runner.cpp",
   ]
   deps = [
     "//base",
