@@ -101,25 +101,26 @@ int main() {
   // base::ProcessHandle child_handle =
       // LaunchCoolChildProcess(channel.PassClientHandle());
 
-  // At this point it's safe for |invitation| to go out of scope and nothing
-  // will break.
-  // invitation.Send(
-  //   child_handle, 
-  //   mojo::edk::ConnectionParams(
-  //     mojo::edk::TransportProtocol::kLegacy,
-  //     channel.PassServerHandle()
-  //   )
-  // );
+  mojo::ScopedMessagePipeHandle my_pipe = invitation.AttachMessagePipe("pretty_cool_pipe");
 
+  // Launch Child Process
   base::CommandLine::StringVector args = std::vector<std::string> {std::string{"./out/Default/mocker-client"}};
   base::CommandLine command_line(args);
   base::LaunchOptions options;
-
   mojo::edk::PlatformChannelPair channel;
-  
   channel.PrepareToPassClientHandleToChildProcess(&command_line, &options.fds_to_remap);
+  
+  base::Process p = base::LaunchProcess(command_line, options);
 
-  base::LaunchProcess(command_line, options);
+  // At this point it's safe for |invitation| to go out of scope and nothing
+  // will break.
+  invitation.Send(
+    p.Handle(), 
+    mojo::edk::ConnectionParams(
+      mojo::edk::TransportProtocol::kLegacy,
+      channel.PassServerHandle()
+    )
+  );
   
   std::cout << "server" << std::endl;
 

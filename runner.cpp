@@ -39,7 +39,12 @@ int main(int argc, char** argv) {
       mojo::edk::TransportProtocol::kLegacy
   );
 
-  
+  mojo::ScopedMessagePipeHandle my_pipe =
+      invitation->ExtractMessagePipe("pretty_cool_pipe");
+
+  if (my_pipe.is_valid()) {
+    std::cout << "is_valid()" << std::endl;
+  }
 
   // TODO: setup v8 globals
 
