@@ -1,11 +1,16 @@
 #include <iostream>
 #include <string>     // std::string, std::to_string
+#include <vector>
+
+#include <errno.h>
 
 #include "base/threading/thread.h"
 
 // https://cs.chromium.org/chromium/src/mojo/edk/BUILD.gn?sq=package:chromium&dr&l=8-9
 #include "mojo/edk/embedder/embedder.h"
 #include "base/macros.h"
+#include "base/command_line.h"
+#include "base/process/launch.h"
 
 // #include "mojo/edk/embedder/scoped_ipc_support.h"
 #include "mojo/public/cpp/bindings/binding.h"
@@ -24,23 +29,27 @@
 // execve
 #include <unistd.h>
 
-base::ProcessHandle LaunchCoolChildProcess(mojo::edk::ScopedPlatformHandle channel) {
-  int fildes[2];
+// base::ProcessHandle LaunchCoolChildProcess(mojo::edk::ScopedPlatformHandle channel) {
+//   int fildes[2];
   
-  pipe(fildes);
+//   pipe(fildes);
   
-  // On POSIX, our ProcessHandle will just be the PID.
-  // https://cs.chromium.org/chromium/src/base/process/process_handle.h?type=cs&q=base::ProcessHandle&sq=package:chromium&l=40
-  int pid = fork();
+//   // On POSIX, our ProcessHandle will just be the PID.
+//   // https://cs.chromium.org/chromium/src/base/process/process_handle.h?type=cs&q=base::ProcessHandle&sq=package:chromium&l=40
+//   int pid = fork();
 
-  if (pid == 0) {
-    close(fildes[0]);
-    execlp("mocker-client", "mocker-client", std::to_string(fildes[1]).c_str());
-  }
+//   if (pid == 0) {
+//     close(fildes[0]);
+//     int out = execl("./out/Default/mocker-client", "mocker-client", std::to_string(fildes[1]).c_str());
+    
+//     std::cout << strerror(errno) << std::endl;
 
-  close(fildes[1]);
-  return pid;
-};
+//     exit(out);
+//   }
+
+//   close(fildes[1]);
+//   return pid;
+// };
 
 
 int main() {
@@ -81,7 +90,7 @@ int main() {
 
   // This is essentially always an OS pipe (domain socket pair, Windows named
   // pipe, etc.)
-  mojo::edk::PlatformChannelPair channel;
+  // mojo::edk::PlatformChannelPair channel;
 
   // This is a scoper which encapsulates the intent to connect to another
   // process. It exists because process connection is inherently asynchronous,
@@ -89,19 +98,29 @@ int main() {
   // by the lifetime of this object regardless of success or failure.
   mojo::edk::OutgoingBrokerClientInvitation invitation;
 
-  base::ProcessHandle child_handle =
-      LaunchCoolChildProcess(channel.PassClientHandle());
+  // base::ProcessHandle child_handle =
+      // LaunchCoolChildProcess(channel.PassClientHandle());
 
   // At this point it's safe for |invitation| to go out of scope and nothing
   // will break.
-  invitation.Send(
-    child_handle, 
-    mojo::edk::ConnectionParams(
-      mojo::edk::TransportProtocol::kLegacy,
-      channel.PassServerHandle()
-    )
-  );
+  // invitation.Send(
+  //   child_handle, 
+  //   mojo::edk::ConnectionParams(
+  //     mojo::edk::TransportProtocol::kLegacy,
+  //     channel.PassServerHandle()
+  //   )
+  // );
 
+  base::CommandLine::StringVector args = std::vector<std::string> {std::string{"./out/Default/mocker-client"}};
+  base::CommandLine command_line(args);
+  base::LaunchOptions options;
+
+  mojo::edk::PlatformChannelPair channel;
+  
+  channel.PrepareToPassClientHandleToChildProcess(&command_line, &options.fds_to_remap);
+
+  base::LaunchProcess(command_line, options);
+  
   std::cout << "server" << std::endl;
 
   return 0;

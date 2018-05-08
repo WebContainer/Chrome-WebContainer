@@ -21,11 +21,11 @@ int main(int argc, char** argv) {
   // TODO: setup v8
   // TODO: setup sandbox
 
-  std::cout << argv[1] << std::endl;
+  // std::cout << argv[1] << std::endl;
 
   // Setup IPC with privileged process
 
-  int fd = atoi(argv[1]);
+  // int fd = atoi(argv[1]);
 
   base::Thread ipc_thread("ipc!");
   ipc_thread.StartWithOptions(
@@ -35,8 +35,11 @@ int main(int argc, char** argv) {
       ipc_thread.task_runner(),
       mojo::edk::ScopedIPCSupport::ShutdownPolicy::CLEAN);
 
-  mojo::edk::IncomingBrokerClientInvitation::Accept(
-       mojo::edk::ConnectionParams(mojo::edk::TransportProtocol::kLegacy, GetChannelHandle(fd)));
+  auto invitation = mojo::edk::IncomingBrokerClientInvitation::AcceptFromCommandLine(
+      mojo::edk::TransportProtocol::kLegacy
+  );
+
+  
 
   // TODO: setup v8 globals
 
