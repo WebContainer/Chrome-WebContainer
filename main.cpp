@@ -115,6 +115,7 @@ int main() {
   
   base::Process p = base::LaunchProcess(command_line, options);
   DCHECK(p.IsValid());
+  channel.ChildProcessLaunched();
 
   // At this point it's safe for |invitation| to go out of scope and nothing
   // will break.
