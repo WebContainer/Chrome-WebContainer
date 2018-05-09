@@ -3,38 +3,42 @@
 #include <vector>
 
 #include <errno.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <unistd.h>
 
 #include "base/threading/thread.h"
 
 // https://cs.chromium.org/chromium/src/mojo/edk/BUILD.gn?sq=package:chromium&dr&l=8-9
-#include "mojo/edk/embedder/embedder.h"
-#include "base/macros.h"
 #include "base/command_line.h"
-#include "base/process/launch.h"
+#include "base/macros.h"
 #include "base/path_service.h"
-
-// #include "mojo/edk/embedder/scoped_ipc_support.h"
-#include "mojo/public/cpp/bindings/binding.h"
-#include "mojo/public/cpp/system/wait.h"
-// #include "mojo/public/cpp/bindings/interface_request.h"
-#include "groundwater/groundwater.mojom.h"
-
-// https://chromium.googlesource.com/chromium/src/+/master/mojo/edk/embedder/README.md#Connecting-Two-Processes
+#include "base/process/launch.h"
 #include "base/process/process_handle.h"
 #include "base/threading/thread.h"
+#include "mojo/edk/embedder/embedder.h"
 #include "mojo/edk/embedder/embedder.h"
 #include "mojo/edk/embedder/outgoing_broker_client_invitation.h"
 #include "mojo/edk/embedder/platform_channel_pair.h"
 #include "mojo/edk/embedder/scoped_ipc_support.h"
+#include "mojo/public/cpp/bindings/binding.h"
+#include "mojo/public/cpp/system/wait.h"
 
+#include "groundwater/groundwater.mojom.h"
+
+// https://chromium.googlesource.com/chromium/src/+/master/mojo/edk/embedder/README.md#Connecting-Two-Processes
 
 class SystemCallsImpl : public groundwater::SystemCalls {
 public:
   explicit SystemCallsImpl(groundwater::SystemCallsRequest request)
     : binding_(this, std::move(request)) {}
   void Open(const std::string& filepath, OpenCallback callback) override {
-    std::cout << "Opened " << filepath << std::endl;
-    std::move(callback).Run(42L);
+    // std::cout << "Opened " << filepath << std::endl;
+    
+    int fd = open(filepath.c_str(), O_RDONLY);
+
+    std::move(callback).Run(fd);
   }
   void Socket(SocketCallback callback) override {
     std::cout << "Socket" << std::endl;
@@ -46,7 +50,16 @@ public:
   }
 
   void Read(int64_t fd, int64_t numBytes, ReadCallback callback) override {
-    std::cout << "Read" << std::endl;
+    unsigned char buf[1000];
+
+    
+    ssize_t len = read(fd, buf, 1000);
+    
+    std::cout << "server::read::" << fd << "::" << len << std::endl;
+
+    std::vector<unsigned char> vec(buf, buf + len);
+    
+    std::move(callback).Run(vec);
   }
 
 private:

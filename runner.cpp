@@ -44,6 +44,24 @@ void MojoOpen(const v8::FunctionCallbackInfo<v8::Value> &info) {
     info.GetReturnValue().Set(v8::Number::New(isolate, fd));
 }
 
+void MojoRead(const v8::FunctionCallbackInfo<v8::Value> &info) {
+    std::cout<<"server::js::MojoRead()"<<std::endl;
+
+    int32_t fd = info[0]->Int32Value();
+    int32_t size = info[1]->Int32Value();
+
+    std::vector<uint8_t> bytes;
+    system_calls_ptr->Read(fd, size, &bytes);
+
+    v8::Local<v8::ArrayBuffer> ab = v8::ArrayBuffer::New(info.GetIsolate(), bytes.size());
+    void * start = ab->GetContents().Data();
+    size_t length = ab->GetContents().ByteLength();
+
+    std::memcpy(start, &bytes[0], length);
+
+    info.GetReturnValue().Set(ab);
+}
+
 // the socket() call
 void MojoSocket(const v8::FunctionCallbackInfo<v8::Value> &info) {
     std::cout<<"server::js::MojoSocket()"<<std::endl;
@@ -95,9 +113,9 @@ int main(int argc, char** argv) {
   base::RunLoop run_loop;
   system_calls_ptr.Bind(groundwater::SystemCallsPtrInfo(std::move(primordial_pipe), 0));
 
-  int64_t fd = 0;
-  system_calls_ptr->Open(std::string("hello"), &fd);
-  std::cout << "got fd " << fd << std::endl;
+//   int64_t fd = 0;
+//   system_calls_ptr->Open(std::string("hello"), &fd);
+//   std::cout << "got fd " << fd << std::endl;
 
   // from https://chromium.googlesource.com/v8/v8/+/master/samples/hello-world.cc
 
@@ -125,8 +143,8 @@ int main(int argc, char** argv) {
         v8::FunctionTemplate::New(isolate, MojoOpen)
     );
     global->Set(
-        v8::String::NewFromUtf8(isolate, "socket"),
-        v8::FunctionTemplate::New(isolate, MojoSocket)
+        v8::String::NewFromUtf8(isolate, "read"),
+        v8::FunctionTemplate::New(isolate, MojoRead)
     );
 
     global->Set(
@@ -137,7 +155,7 @@ int main(int argc, char** argv) {
     v8::Local<v8::Context> context = v8::Context::New(isolate, NULL, global);
 
     v8::Context::Scope context_scope(context);
-    v8::Local<v8::String> source = v8::String::NewFromUtf8(isolate, "print(open(\"foo\")); socket();", v8::NewStringType::kNormal).ToLocalChecked();
+    v8::Local<v8::String> source = v8::String::NewFromUtf8(isolate, "var fd = open(\"README.md\"); print(fd); print(new Uint8Array(read(fd, 100)).toString('utf8'));", v8::NewStringType::kNormal).ToLocalChecked();
     v8::Local<v8::Script> script = v8::Script::Compile(context, source).ToLocalChecked();
 
     // JavaScript executes!
