@@ -172,7 +172,17 @@ int main(int argc, char** argv) {
     // JavaScript executes!
     script->Run(context).ToLocalChecked();
 
-    isolate->RunMicrotasks();
+    // our quick and dirty event loop
+    while(
+        v8::platform::PumpMessageLoop(
+            platform, 
+            isolate, 
+            v8::platform::MessageLoopBehavior::kWaitForWork
+        )
+     ) {
+        std::cout << ".";
+        isolate->RunMicrotasks();
+    }
   }
 
   isolate->Dispose();

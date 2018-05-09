@@ -41,7 +41,9 @@ print(buf)
 const memory = new WebAssembly.Memory({initial: 1});
 const imports = {
     env: {
-        memory
+        memory,
+        read() {print("READ"); return 0;},
+        open() {print("OPEN"); return 0;},
     }
 }
 
@@ -49,5 +51,5 @@ new Uint32Array(memory.buffer)[1] = 10000
 
 const o = WebAssembly
 .instantiate(buf, imports)
-.then(r => print("END" + r))
+.then(r => r.instance.exports.main())
 .catch(e => print("ERROR" + e.message ))
