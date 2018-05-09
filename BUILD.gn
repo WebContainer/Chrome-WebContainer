@@ -14,7 +14,7 @@ executable("mocker-server") {
   deps = [
     "//base",
     "//mojo/edk",
-    ":groundwater_mojo",
+    # ":groundwater_mojo",
   ]
 }
 
@@ -25,7 +25,9 @@ executable("mocker-client") {
   deps = [
     "//base",
     "//mojo/edk",
-    ":groundwater_mojo",
+    "//v8",
+    "//v8:v8_libplatform",
+    # ":groundwater_mojo",
   ]
 }
 

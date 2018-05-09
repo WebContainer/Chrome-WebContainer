@@ -12,6 +12,9 @@
 
 #include "api.h"
 
+#include "v8/include/libplatform/libplatform.h"
+#include "v8/include/v8.h"
+
 // You write this. It acquires the ScopedPlatformHandle that was passed by
 // whomever launched this process (i.e. LaunchCoolChildProcess above).
 mojo::edk::ScopedPlatformHandle GetChannelHandle(int fd) {
@@ -46,6 +49,45 @@ int main(int argc, char** argv) {
   if (primordial_pipe.is_valid()) {
     std::cout << "client::is_valid()" << std::endl;
   }
+
+  // from https://chromium.googlesource.com/v8/v8/+/master/samples/hello-world.cc
+
+  // std::unique_ptr<v8::Platform> platform = v8::platform::NewDefaultPlatform();
+  
+  v8::V8::InitializeICUDefaultLocation(argv[0]);
+  v8::V8::InitializeExternalStartupData(argv[0]);
+
+  v8::Platform* platform = v8::platform::CreateDefaultPlatform();
+
+  v8::V8::InitializePlatform(platform);
+  v8::V8::Initialize();
+
+  v8::Isolate::CreateParams create_params;
+  create_params.array_buffer_allocator = v8::ArrayBuffer::Allocator::NewDefaultAllocator();
+  v8::Isolate* isolate = v8::Isolate::New(create_params);
+
+  {
+    v8::Isolate::Scope isolate_scope(isolate);
+    v8::HandleScope handle_scope(isolate);
+
+    v8::Local<v8::Context> context = v8::Context::New(isolate);
+
+    v8::Context::Scope context_scope(context);
+    v8::Local<v8::String> source = v8::String::NewFromUtf8(isolate, "'Hello' + ', World!'", v8::NewStringType::kNormal).ToLocalChecked();
+    v8::Local<v8::Script> script = v8::Script::Compile(context, source).ToLocalChecked();
+
+    // JavaScript executes!
+    v8::Local<v8::Value> result = script->Run(context).ToLocalChecked();
+    
+    v8::String::Utf8Value utf8(isolate, result);
+    std::cout << "server::v8::result::" << *utf8 << std::endl;
+  }
+
+  isolate->Dispose();
+  v8::V8::Dispose();
+  v8::V8::ShutdownPlatform();
+  delete create_params.array_buffer_allocator;
+
 
   int i = 0;
   while(i++ < 5) {
