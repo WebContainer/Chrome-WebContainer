@@ -9,6 +9,8 @@
 #include "mojo/edk/embedder/incoming_broker_client_invitation.h"
 #include "mojo/edk/embedder/connection_params.h"
 #include "mojo/public/cpp/system/wait.h"
+#include "groundwater/groundwater.mojom.h"
+#include "base/run_loop.h"
 
 #include "api.h"
 
@@ -113,6 +115,17 @@ int main(int argc, char** argv) {
     std::cout << "client::is_valid()" << std::endl;
   }
 
+  base::MessageLoop message_loop;
+  base::RunLoop run_loop;
+  groundwater::SystemCallsPtr system_calls_ptr;
+  system_calls_ptr.Bind(groundwater::SystemCallsPtrInfo(std::move(primordial_pipe), 0));
+
+  int64_t fd = 0;
+  system_calls_ptr->Open(std::string("hello"), &fd);
+  std::cout << "got fd " << fd << std::endl;
+
+  /*
+
   // from https://chromium.googlesource.com/v8/v8/+/master/samples/hello-world.cc
 
   // std::unique_ptr<v8::Platform> platform = v8::platform::NewDefaultPlatform();
@@ -160,6 +173,7 @@ int main(int argc, char** argv) {
   v8::V8::Dispose();
   v8::V8::ShutdownPlatform();
   delete create_params.array_buffer_allocator;
+  */
 
   // TODO: setup v8 globals
 

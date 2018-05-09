@@ -54,6 +54,32 @@
 //   return pid;
 // };
 
+class SystemCallsImpl : public groundwater::SystemCalls {
+public:
+  explicit SystemCallsImpl(groundwater::SystemCallsRequest request)
+    : binding_(this, std::move(request)) {}
+  void Open(const std::string& filepath, OpenCallback callback) override {
+    std::cout << "Opened " << filepath << std::endl;
+    std::move(callback).Run(42L);
+  }
+  void Socket(SocketCallback callback) override {
+    std::cout << "Socket" << std::endl;
+  }
+
+  void Close(int64_t fd, CloseCallback callback) override {
+    std::cout << "Close" << std::endl;
+  }
+
+  void Read(int64_t fd, int64_t numBytes, ReadCallback callback) override {
+    std::cout << "Read" << std::endl;
+  }
+
+private:
+  mojo::Binding<groundwater::SystemCalls> binding_;
+
+  DISALLOW_COPY_AND_ASSIGN(SystemCallsImpl);
+};
+
 
 int main() {
   // https://chromium.googlesource.com/chromium/src/+/master/mojo/edk/embedder/
@@ -129,6 +155,14 @@ int main() {
     )
   );
 
+  base::MessageLoop message_loop;
+  base::RunLoop run_loop;
+
+  SystemCallsImpl impl(groundwater::SystemCallsRequest(std::move(primordial_pipe)));
+
+  run_loop.Run();
+
+  /*
   // message loop
   while(1) {
     // Wait for next message.
@@ -170,6 +204,7 @@ int main() {
   };
 
   std::cout << "server::end" << std::endl;
+  */
 
   p.WaitForExit(nullptr);
 
