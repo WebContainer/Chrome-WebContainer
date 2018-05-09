@@ -30,8 +30,6 @@
 // execve
 #include <unistd.h>
 
-#include "api.h"
-
 // base::ProcessHandle LaunchCoolChildProcess(mojo::edk::ScopedPlatformHandle channel) {
 //   int fildes[2];
   
@@ -64,6 +62,7 @@ public:
   }
   void Socket(SocketCallback callback) override {
     std::cout << "Socket" << std::endl;
+    std::move(callback).Run(64L);
   }
 
   void Close(int64_t fd, CloseCallback callback) override {

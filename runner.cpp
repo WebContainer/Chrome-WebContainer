@@ -12,8 +12,6 @@
 #include "groundwater/groundwater.mojom.h"
 #include "base/run_loop.h"
 
-#include "api.h"
-
 #include "v8/include/libplatform/libplatform.h"
 #include "v8/include/v8.h"
 
@@ -23,33 +21,7 @@ mojo::edk::ScopedPlatformHandle GetChannelHandle(int fd) {
     return mojo::edk::ScopedPlatformHandle(mojo::edk::PlatformHandle(fd));
 }
 
-mojo::ScopedMessagePipeHandle primordial_pipe;
-
-// Convenience method for issueing a syscall
-// This requires the global primordial_pipe to be initalize,
-// and absolutely doesn't check if that has been done. You've been warned.
-int Mojo_Syscall(struct SystemCall &syscall, struct SystemCallReturn *syscall_result) {
-    MojoResult result = mojo::WriteMessageRaw(
-        primordial_pipe.get(),
-        static_cast<const void*>(&syscall),
-        sizeof(syscall),
-        nullptr,
-        0,
-        MOJO_WRITE_MESSAGE_FLAG_NONE);
-    
-    if (result != MOJO_RESULT_OK) return -1; // TODO: conver to error
-
-    // Wait for response
-    mojo::Wait(primordial_pipe.get(), MOJO_HANDLE_SIGNAL_READABLE, MOJO_TRIGGER_CONDITION_SIGNALS_SATISFIED, nullptr);
-    std::vector<uint8_t> bytes;
-    result = mojo::ReadMessageRaw(primordial_pipe.get(), &bytes, nullptr, MOJO_READ_MESSAGE_FLAG_NONE);
-
-    if (result != MOJO_RESULT_OK) return -1; // TODO: conver to error
-
-    syscall_result = reinterpret_cast<struct SystemCallReturn*>(&bytes[0]);
-
-    return 0;
-}
+groundwater::SystemCallsPtr system_calls_ptr;
 
 // Enumerate syscalls we want to forward over Mojo.
 
@@ -66,24 +38,18 @@ void MojoOpen(const v8::FunctionCallbackInfo<v8::Value> &info) {
 
     std::cout << "server::MojoOpen::" << charStr << std::endl;
 
-    struct SystemCallReturn syscall_return;
-    struct SystemCall syscall {
-      .name = SystemCallName::Open,
-    };
-    
-    Mojo_Syscall(syscall, &syscall_return);
+    int64_t fd = 0;
+    system_calls_ptr->Open(std::string(charStr), &fd);
+
+    //info.GetReturnValue().Set(v8::Local<v8::Number>::New(isolate, fd));
 }
 
 // the socket() call
 void MojoSocket(const v8::FunctionCallbackInfo<v8::Value> &info) {
     std::cout<<"server::js::MojoSocket()"<<std::endl;
 
-    struct SystemCallReturn syscall_return;
-    struct SystemCall syscall {
-      .name = SystemCallName::Socket,
-    };
-    
-    Mojo_Syscall(syscall, &syscall_return);
+    int64_t fd = 0;
+    system_calls_ptr->Socket(&fd);
 }
 
 int main(int argc, char** argv) {
@@ -108,6 +74,7 @@ int main(int argc, char** argv) {
       mojo::edk::TransportProtocol::kLegacy
   );
 
+  mojo::ScopedMessagePipeHandle primordial_pipe;
   primordial_pipe =
       invitation->ExtractMessagePipe("pretty_cool_pipe");
 
@@ -117,14 +84,11 @@ int main(int argc, char** argv) {
 
   base::MessageLoop message_loop;
   base::RunLoop run_loop;
-  groundwater::SystemCallsPtr system_calls_ptr;
   system_calls_ptr.Bind(groundwater::SystemCallsPtrInfo(std::move(primordial_pipe), 0));
 
   int64_t fd = 0;
   system_calls_ptr->Open(std::string("hello"), &fd);
   std::cout << "got fd " << fd << std::endl;
-
-  /*
 
   // from https://chromium.googlesource.com/v8/v8/+/master/samples/hello-world.cc
 
@@ -159,7 +123,7 @@ int main(int argc, char** argv) {
     v8::Local<v8::Context> context = v8::Context::New(isolate, NULL, global);
 
     v8::Context::Scope context_scope(context);
-    v8::Local<v8::String> source = v8::String::NewFromUtf8(isolate, "open(); socket();", v8::NewStringType::kNormal).ToLocalChecked();
+    v8::Local<v8::String> source = v8::String::NewFromUtf8(isolate, "open(\"foo\"); socket();", v8::NewStringType::kNormal).ToLocalChecked();
     v8::Local<v8::Script> script = v8::Script::Compile(context, source).ToLocalChecked();
 
     // JavaScript executes!
@@ -173,7 +137,6 @@ int main(int argc, char** argv) {
   v8::V8::Dispose();
   v8::V8::ShutdownPlatform();
   delete create_params.array_buffer_allocator;
-  */
 
   // TODO: setup v8 globals
 
