@@ -41,7 +41,7 @@ void MojoOpen(const v8::FunctionCallbackInfo<v8::Value> &info) {
     int64_t fd = 0;
     system_calls_ptr->Open(std::string(charStr), &fd);
 
-    //info.GetReturnValue().Set(v8::Local<v8::Number>::New(isolate, fd));
+    info.GetReturnValue().Set(v8::Number::New(isolate, fd));
 }
 
 // the socket() call
@@ -50,6 +50,15 @@ void MojoSocket(const v8::FunctionCallbackInfo<v8::Value> &info) {
 
     int64_t fd = 0;
     system_calls_ptr->Socket(&fd);
+}
+
+void Printf(const v8::FunctionCallbackInfo<v8::Value> &info) {
+    v8::Isolate* isolate = info.GetIsolate();
+
+    v8::Local<v8::Value> arg0 = info[0];
+    v8::Local<v8::String> fileStr = arg0->ToString();
+    v8::String::Utf8Value utf8Str(isolate, fileStr);
+    std::cout << *utf8Str << std::endl;
 }
 
 int main(int argc, char** argv) {
@@ -120,10 +129,15 @@ int main(int argc, char** argv) {
         v8::FunctionTemplate::New(isolate, MojoSocket)
     );
 
+    global->Set(
+        v8::String::NewFromUtf8(isolate, "print"),
+        v8::FunctionTemplate::New(isolate, Printf)
+    );
+
     v8::Local<v8::Context> context = v8::Context::New(isolate, NULL, global);
 
     v8::Context::Scope context_scope(context);
-    v8::Local<v8::String> source = v8::String::NewFromUtf8(isolate, "open(\"foo\"); socket();", v8::NewStringType::kNormal).ToLocalChecked();
+    v8::Local<v8::String> source = v8::String::NewFromUtf8(isolate, "print(open(\"foo\")); socket();", v8::NewStringType::kNormal).ToLocalChecked();
     v8::Local<v8::Script> script = v8::Script::Compile(context, source).ToLocalChecked();
 
     // JavaScript executes!
