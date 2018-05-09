@@ -10,6 +10,8 @@
 #include "mojo/edk/embedder/connection_params.h"
 #include "mojo/public/cpp/system/wait.h"
 
+#include "api.h"
+
 // You write this. It acquires the ScopedPlatformHandle that was passed by
 // whomever launched this process (i.e. LaunchCoolChildProcess above).
 mojo::edk::ScopedPlatformHandle GetChannelHandle(int fd) {
@@ -42,21 +44,47 @@ int main(int argc, char** argv) {
       invitation->ExtractMessagePipe("pretty_cool_pipe");
 
   if (primordial_pipe.is_valid()) {
-    std::cout << "is_valid()" << std::endl;
+    std::cout << "client::is_valid()" << std::endl;
   }
 
-  mojo::Wait(primordial_pipe.get(), MOJO_HANDLE_SIGNAL_READABLE,
-      MOJO_TRIGGER_CONDITION_SIGNALS_SATISFIED, nullptr);
+  int i = 0;
+  while(i++ < 5) {
+    // TODO: the loop will get removed, and converted into functions passed into our JS world
 
-  std::vector<uint8_t> bytes;
-  mojo::ReadMessageRaw(primordial_pipe.get(), &bytes, nullptr, MOJO_READ_MESSAGE_FLAG_NONE);
-  std::cout << "client received: " << std::string(bytes.begin(), bytes.end()) << std::endl;
+    // Issue a system call
+    struct SystemCall syscall {
+      .name = SystemCallName::Open,
+      .message = "123456789"
+    };
+
+    MojoResult result = mojo::WriteMessageRaw(primordial_pipe.get(),
+        static_cast<const void*>(&syscall),
+        sizeof(syscall),
+        nullptr,
+        0,
+        MOJO_WRITE_MESSAGE_FLAG_NONE);
+    
+    if (result != MOJO_RESULT_OK) break; // TODO: conver to error
+
+    // Wait for response
+    mojo::Wait(primordial_pipe.get(), MOJO_HANDLE_SIGNAL_READABLE, MOJO_TRIGGER_CONDITION_SIGNALS_SATISFIED, nullptr);
+    std::vector<uint8_t> bytes;
+    result = mojo::ReadMessageRaw(primordial_pipe.get(), &bytes, nullptr, MOJO_READ_MESSAGE_FLAG_NONE);
+    if (result != MOJO_RESULT_OK) break; // TODO: conver to error
+    struct SystemCallReturn* syscall_result = reinterpret_cast<struct SystemCallReturn*>(&bytes[0]);
+
+    // print our response
+    std::cout << "client::result::" << syscall_result->code << std::endl;
+    
+    // don't kill my laptop
+    sleep(1);
+  }
 
   // TODO: setup v8 globals
 
   // TODO: run WASM
 
-  std::cout << "client" << std::endl;
+  std::cout << "client::end" << std::endl;
 
   return 0;
 }

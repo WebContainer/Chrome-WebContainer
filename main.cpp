@@ -30,6 +30,8 @@
 // execve
 #include <unistd.h>
 
+#include "api.h"
+
 // base::ProcessHandle LaunchCoolChildProcess(mojo::edk::ScopedPlatformHandle channel) {
 //   int fildes[2];
   
@@ -127,15 +129,49 @@ int main() {
     )
   );
 
-  const char* kMessage = "groundwater";
-  mojo::WriteMessageRaw(primordial_pipe.get(),
-      static_cast<const void*>(kMessage),
-      strlen(kMessage) + 1,
-      nullptr,
-      0,
-      MOJO_WRITE_MESSAGE_FLAG_NONE);
-  
-  std::cout << "server" << std::endl;
+  // message loop
+  while(1) {
+    // Wait for next message.
+    // This will return if the child process disappears.
+    mojo::Wait(primordial_pipe.get(), MOJO_HANDLE_SIGNAL_READABLE, MOJO_TRIGGER_CONDITION_SIGNALS_SATISFIED, nullptr);
+
+    std::vector<uint8_t> bytes;
+
+    MojoResult result = mojo::ReadMessageRaw(primordial_pipe.get(), &bytes, nullptr, MOJO_READ_MESSAGE_FLAG_NONE);
+    
+    // If the child exits, this will not be MOJO_RESULT_OK so we should break.
+    if (result != MOJO_RESULT_OK) break;
+
+    // Pointer magic to recast our incoming bytes to the right struct
+    struct SystemCall* syscall = reinterpret_cast<struct SystemCall*>(&bytes[0]);
+
+    // We should switch
+    // std::string message(bytes.begin(), bytes.end());
+    // std::cout << "server received: " << message << std::endl;
+    switch(syscall->name) {
+    case SystemCallName::Open:
+      std::cout << "server::syscall::open" << std::endl;
+      break;
+    default:
+      std::cout << "server::syscall::UNKNOWN:" << syscall->name << std::endl;
+    }
+
+    std::cout << "server::syscall::message::" << syscall->message << std::endl;
+
+    // Return result
+    struct SystemCallReturn syscall_return {
+      .code = 1
+    };
+    mojo::WriteMessageRaw(primordial_pipe.get(),
+        static_cast<const void*>(&syscall_return),
+        sizeof(syscall_return),
+        nullptr,
+        0,
+        MOJO_WRITE_MESSAGE_FLAG_NONE);
+    
+  };
+
+  std::cout << "server::end" << std::endl;
 
   p.WaitForExit(nullptr);
 
