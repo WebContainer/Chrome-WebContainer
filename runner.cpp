@@ -24,11 +24,7 @@ int main(int argc, char** argv) {
   // TODO: setup v8
   // TODO: setup sandbox
 
-  // std::cout << argv[1] << std::endl;
-
   // Setup IPC with privileged process
-
-  // int fd = atoi(argv[1]);
 
   base::Thread ipc_thread("ipc!");
   ipc_thread.StartWithOptions(

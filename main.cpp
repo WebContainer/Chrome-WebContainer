@@ -11,6 +11,7 @@
 #include "base/macros.h"
 #include "base/command_line.h"
 #include "base/process/launch.h"
+#include "base/path_service.h"
 
 // #include "mojo/edk/embedder/scoped_ipc_support.h"
 #include "mojo/public/cpp/bindings/binding.h"
@@ -104,8 +105,10 @@ int main() {
   mojo::ScopedMessagePipeHandle primordial_pipe = invitation.AttachMessagePipe("pretty_cool_pipe");
 
   // Launch Child Process
-  base::CommandLine::StringVector args = std::vector<std::string> {std::string{"./out/Default/mocker-client"}};
-  base::CommandLine command_line(args);
+  base::FilePath client_exe;
+  base::PathService::Get(base::DIR_EXE, &client_exe);
+  client_exe = client_exe.AppendASCII("mocker-client");
+  base::CommandLine command_line(client_exe);
   base::LaunchOptions options;
   mojo::edk::PlatformChannelPair channel;
   channel.PrepareToPassClientHandleToChildProcess(&command_line, &options.fds_to_remap);
