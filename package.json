@@ -1,0 +1,23 @@
+{
+  "name": "groundwater",
+  "version": "1.0.0",
+  "description": "``` cd $CHROME_SRC git clone https://github.com/groundwater/chrome-groundwater.git groundwater gn build out/Default ninja -C out/Default groundwater ```",
+  "main": "index.js",
+  "scripts": {
+    "build": "browserify bundle.js -o initrd"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/groundwater/chrome-groundwater.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/groundwater/chrome-groundwater/issues"
+  },
+  "homepage": "https://github.com/groundwater/chrome-groundwater#readme",
+  "dependencies": {
+    "browserify": "^16.2.2"
+  }
+}

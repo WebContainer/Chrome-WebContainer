@@ -79,7 +79,15 @@ void Printf(const v8::FunctionCallbackInfo<v8::Value> &info) {
     std::cout << *utf8Str << std::endl;
 }
 
+#include <string>
+#include <fstream>
+#include <streambuf>
+
 int main(int argc, char** argv) {
+  
+  std::ifstream t("initrd");
+  std::string initrd((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
+
   mojo::edk::Init();
   base::CommandLine::Init(argc, argv);
 
@@ -155,14 +163,11 @@ int main(int argc, char** argv) {
     v8::Local<v8::Context> context = v8::Context::New(isolate, NULL, global);
 
     v8::Context::Scope context_scope(context);
-    v8::Local<v8::String> source = v8::String::NewFromUtf8(isolate, "var fd = open(\"README.md\"); print(fd); print(new Uint8Array(read(fd, 100)).toString('utf8'));", v8::NewStringType::kNormal).ToLocalChecked();
+    v8::Local<v8::String> source = v8::String::NewFromUtf8(isolate, initrd.c_str(), v8::NewStringType::kNormal).ToLocalChecked();
     v8::Local<v8::Script> script = v8::Script::Compile(context, source).ToLocalChecked();
 
     // JavaScript executes!
-    v8::Local<v8::Value> result = script->Run(context).ToLocalChecked();
-    
-    v8::String::Utf8Value utf8(isolate, result);
-    std::cout << "server::v8::result::" << *utf8 << std::endl;
+    script->Run(context).ToLocalChecked();    
   }
 
   isolate->Dispose();

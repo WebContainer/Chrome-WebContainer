@@ -50,10 +50,13 @@ public:
   }
 
   void Read(int64_t fd, int64_t numBytes, ReadCallback callback) override {
-    unsigned char buf[1000];
+    unsigned char buf[1000000];
 
-    
-    ssize_t len = read(fd, buf, 1000);
+    if (numBytes > 1000000) {
+      numBytes = 1000000;
+    }
+
+    ssize_t len = read(fd, buf, numBytes);
     
     std::cout << "server::read::" << fd << "::" << len << std::endl;
 
