@@ -1,18 +1,8 @@
 module groundwater;
 
-struct MyData {
-  int64 value;
-};
-
-interface Groundwater {
-    Log(string message);
-};
-
-struct Socket {
-  int64 fd;
-};
-
-interface GroundwaterSocket {
-  [Sync]
-  Socket() => (Socket result);
+interface SystemCalls {
+    Socket() => (int64 fd);
+    Open(string filepath) => (int64 fd);
+    Close(int64 fd);
+    Read(int64 fd, int64 numBytes) => (array<uint8> bytes);
 };

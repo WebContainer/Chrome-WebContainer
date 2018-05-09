@@ -8,9 +8,12 @@ enum SystemCallName {
 
 struct SystemCall {
     SystemCallName name;
-    char message[10];
 };
 
 struct SystemCallReturn {
     int code;
 };
+
+#ifdef DEBUG
+#else
+#endif

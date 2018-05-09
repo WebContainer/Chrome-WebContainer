@@ -14,7 +14,7 @@ executable("mocker-server") {
   deps = [
     "//base",
     "//mojo/edk",
-    # ":groundwater_mojo",
+    ":mojom",
   ]
 }
 
@@ -27,11 +27,11 @@ executable("mocker-client") {
     "//mojo/edk",
     "//v8",
     "//v8:v8_libplatform",
-    # ":groundwater_mojo",
+    ":mojom",
   ]
 }
 
-mojom("groundwater_mojo") {
+mojom("mojom") {
   sources = [
       "groundwater.mojom",
   ]

@@ -156,8 +156,6 @@ int main() {
       std::cout << "server::syscall::UNKNOWN:" << syscall->name << std::endl;
     }
 
-    std::cout << "server::syscall::message::" << syscall->message << std::endl;
-
     // Return result
     struct SystemCallReturn syscall_return {
       .code = 1
