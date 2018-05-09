@@ -134,6 +134,9 @@ int main(int argc, char** argv) {
 
   v8::Platform* platform = v8::platform::CreateDefaultPlatform();
 
+  //PumpMessageLoop
+  //https://cs.chromium.org/chromium/src/v8/src/d8.cc?type=cs&q=PumpMessageLoop&l=2970-2973
+
   v8::V8::InitializePlatform(platform);
   v8::V8::Initialize();
 
@@ -167,7 +170,9 @@ int main(int argc, char** argv) {
     v8::Local<v8::Script> script = v8::Script::Compile(context, source).ToLocalChecked();
 
     // JavaScript executes!
-    script->Run(context).ToLocalChecked();    
+    script->Run(context).ToLocalChecked();
+
+    isolate->RunMicrotasks();
   }
 
   isolate->Dispose();

@@ -47,7 +47,7 @@ const imports = {
 
 new Uint32Array(memory.buffer)[1] = 10000
 
-WebAssembly
+const o = WebAssembly
 .instantiate(buf, imports)
 .then(r => print("END" + r))
 .catch(e => print("ERROR" + e.message ))
