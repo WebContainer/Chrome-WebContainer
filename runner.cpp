@@ -149,16 +149,20 @@ int main(int argc, char** argv) {
     v8::HandleScope handle_scope(isolate);
     
     v8::Local<v8::ObjectTemplate> global = v8::ObjectTemplate::New(isolate);
-    global->Set(
+    v8::Local<v8::ObjectTemplate> libc = v8::ObjectTemplate::New(isolate);
+    
+    global->Set(v8::String::NewFromUtf8(isolate, "wlibc"), libc);
+    
+    libc->Set(
         v8::String::NewFromUtf8(isolate, "open"),
         v8::FunctionTemplate::New(isolate, MojoOpen)
     );
-    global->Set(
+    libc->Set(
         v8::String::NewFromUtf8(isolate, "read"),
         v8::FunctionTemplate::New(isolate, MojoRead)
     );
 
-    global->Set(
+    libc->Set(
         v8::String::NewFromUtf8(isolate, "print"),
         v8::FunctionTemplate::New(isolate, Printf)
     );
@@ -180,7 +184,6 @@ int main(int argc, char** argv) {
             v8::platform::MessageLoopBehavior::kWaitForWork
         )
      ) {
-        std::cout << ".";
         isolate->RunMicrotasks();
     }
   }

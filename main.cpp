@@ -58,7 +58,7 @@ public:
 
     ssize_t len = read(fd, buf, numBytes);
     
-    std::cout << "server::read::" << fd << "::" << len << std::endl;
+    std::cout << "server::read::fd(" << fd << ")::len(" << len << ")" << std::endl;
 
     std::vector<unsigned char> vec(buf, buf + len);
     

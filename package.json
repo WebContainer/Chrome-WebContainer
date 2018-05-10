@@ -18,6 +18,7 @@
   },
   "homepage": "https://github.com/groundwater/chrome-groundwater#readme",
   "dependencies": {
-    "browserify": "^16.2.2"
+    "browserify": "^16.2.2",
+    "sprintf-js": "^1.1.1"
   }
 }

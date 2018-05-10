@@ -1,3 +1,5 @@
+const {print, open, read} = wlibc
+
 print("BEGIN")
 
 function Utf8ArrayToStr(array) {
@@ -36,20 +38,56 @@ function Utf8ArrayToStr(array) {
 const fd = open("test.wasm")
 print('fd=' + fd)
 const buf = read(fd, 9999999999)
-print(buf)
 
-const memory = new WebAssembly.Memory({initial: 1});
+const memory = new WebAssembly.Memory({initial: 2});
+const buffer = new Uint8Array(memory.buffer);
+
+new Uint32Array(memory.buffer)[1] = 10000
+let malloc_offset = 10001
+
 const imports = {
     env: {
         memory,
-        read() {print("READ"); return 0;},
-        open() {print("OPEN"); return 0;},
-    }
-}
+        read: (fd, ptr, len) => {
+            const buf = wlibc.read(fd, len)
+            const bufa = new Uint8Array(buf)
+            
+            for(let i=0; i < bufa.length; i++) {
+                buffer[ptr + i] = bufa[i]
+            }
 
-new Uint32Array(memory.buffer)[1] = 10000
+            return bufa.length
+        },
+        open: (pathPtr) => {
+            let s = ""
+            let i = pathPtr
+            while(buffer[i] !== 0) {
+                s += String.fromCharCode(buffer[i])
+                i++
+            }
+            print(`Opening: ${s}`)
+            return wlibc.open(s)
+        },
+        print: (arg) => {
+            wlibc.print("print:" + arg + ":" + buffer[arg])
+            let s = ""
+            let i = arg
+            while(buffer[i]) {
+                s += String.fromCharCode(buffer[i])
+                i++
+            }
+            wlibc.print(s)
+        },
+        malloc(s) {
+            const next = malloc_offset
+            malloc_offset = malloc_offset + s
+            return next
+        },
+        _start() {},
+    },
+}
 
 const o = WebAssembly
 .instantiate(buf, imports)
-.then(r => r.instance.exports.main())
+.then(r => print("EXIT: " + r.instance.exports.main()))
 .catch(e => print("ERROR" + e.message ))
