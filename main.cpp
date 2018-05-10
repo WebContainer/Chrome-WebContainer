@@ -33,20 +33,16 @@ class SystemCallsImpl : public groundwater::SystemCalls {
 public:
   explicit SystemCallsImpl(groundwater::SystemCallsRequest request)
     : binding_(this, std::move(request)) {}
+
   void Open(const std::string& filepath, OpenCallback callback) override {
-    // std::cout << "Opened " << filepath << std::endl;
-    
     int fd = open(filepath.c_str(), O_RDONLY);
 
     std::move(callback).Run(fd);
   }
-  void Socket(SocketCallback callback) override {
-    std::cout << "Socket" << std::endl;
-    std::move(callback).Run(64L);
-  }
 
   void Close(int64_t fd, CloseCallback callback) override {
-    std::cout << "Close" << std::endl;
+    close(fd);
+    std::move(callback).Run();
   }
 
   void Read(int64_t fd, int64_t numBytes, ReadCallback callback) override {
@@ -57,12 +53,14 @@ public:
     }
 
     ssize_t len = read(fd, buf, numBytes);
-    
-    std::cout << "server::read::fd(" << fd << ")::len(" << len << ")" << std::endl;
-
     std::vector<unsigned char> vec(buf, buf + len);
     
     std::move(callback).Run(vec);
+  }
+  
+  void Print(const std::string& message, PrintCallback callback) override {
+    std::cout << message << std::endl;
+    std::move(callback).Run(); 
   }
 
 private:

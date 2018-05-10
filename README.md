@@ -1,3 +1,10 @@
+# WebContainers
+
+A web container is a brokered POSIX implementation in WebAssembly.
+Applications running in web containers have mediated access to the underlying system.
+
+The current proof-of-concept barely works. Don't try it.
+
 # Setup
 
 ```
@@ -9,23 +16,22 @@ ninja -C out/Default groundwater
 
 # GOAL
 
-1. WASM binary
+1. WASM binary. See [WASM C Example](https://github.com/groundwater/wasm-c-example).
 2. create a libc that uses mojo to perform any privileged libc operations
     - e.g. `open()` or `socket()`
 
 ```
-render                      node
-  |                          |
- open                        |
-  |   ------(mojo IPC)-----> |
-  |                          |
-(waiting)                  fs.open
-  |                          |
-  | <------(mojo IPC)------- |
-  |                          |
+(sandbox)                 (privileged)
+  render                      node
+    |                          |
+   open                        |
+    |   ------(mojo IPC)-----> |
+    |                          |
+  (waiting)                 libc.open
+    |                          |
+    | <------(mojo IPC)------- |
+    |                          |
 ```
-
-
 
 # Notes
 

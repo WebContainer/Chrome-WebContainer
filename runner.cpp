@@ -27,7 +27,6 @@ groundwater::SystemCallsPtr system_calls_ptr;
 
 // the open() call
 void MojoOpen(const v8::FunctionCallbackInfo<v8::Value> &info) {
-    std::cout<<"server::js::MojoOpen()"<<std::endl;
     v8::Isolate* isolate = info.GetIsolate();
 
     v8::Local<v8::Value> arg0 = info[0];
@@ -36,8 +35,6 @@ void MojoOpen(const v8::FunctionCallbackInfo<v8::Value> &info) {
 
     char * charStr = *utf8Str;
 
-    std::cout << "server::MojoOpen::" << charStr << std::endl;
-
     int64_t fd = 0;
     system_calls_ptr->Open(std::string(charStr), &fd);
 
@@ -45,8 +42,6 @@ void MojoOpen(const v8::FunctionCallbackInfo<v8::Value> &info) {
 }
 
 void MojoRead(const v8::FunctionCallbackInfo<v8::Value> &info) {
-    std::cout<<"server::js::MojoRead()"<<std::endl;
-
     int32_t fd = info[0]->Int32Value();
     int32_t size = info[1]->Int32Value();
 
@@ -62,21 +57,18 @@ void MojoRead(const v8::FunctionCallbackInfo<v8::Value> &info) {
     info.GetReturnValue().Set(ab);
 }
 
-// the socket() call
-void MojoSocket(const v8::FunctionCallbackInfo<v8::Value> &info) {
-    std::cout<<"server::js::MojoSocket()"<<std::endl;
-
-    int64_t fd = 0;
-    system_calls_ptr->Socket(&fd);
+void MojoClose(const v8::FunctionCallbackInfo<v8::Value> &info) {
+    int32_t fd = info[0]->Int32Value();
+    system_calls_ptr->Close(fd);
 }
 
 void Printf(const v8::FunctionCallbackInfo<v8::Value> &info) {
     v8::Isolate* isolate = info.GetIsolate();
-
     v8::Local<v8::Value> arg0 = info[0];
     v8::Local<v8::String> fileStr = arg0->ToString();
     v8::String::Utf8Value utf8Str(isolate, fileStr);
-    std::cout << *utf8Str << std::endl;
+    
+    system_calls_ptr->Print(std::string(*utf8Str));
 }
 
 #include <string>
@@ -90,10 +82,6 @@ int main(int argc, char** argv) {
 
   mojo::edk::Init();
   base::CommandLine::Init(argc, argv);
-
-  // TODO: load WASM binary
-  // TODO: setup v8
-  // TODO: setup sandbox
 
   // Setup IPC with privileged process
 
@@ -113,17 +101,11 @@ int main(int argc, char** argv) {
   primordial_pipe =
       invitation->ExtractMessagePipe("pretty_cool_pipe");
 
-  if (primordial_pipe.is_valid()) {
-    std::cout << "client::is_valid()" << std::endl;
-  }
+  CHECK(primordial_pipe.is_valid());
 
   base::MessageLoop message_loop;
   base::RunLoop run_loop;
   system_calls_ptr.Bind(groundwater::SystemCallsPtrInfo(std::move(primordial_pipe), 0));
-
-//   int64_t fd = 0;
-//   system_calls_ptr->Open(std::string("hello"), &fd);
-//   std::cout << "got fd " << fd << std::endl;
 
   // from https://chromium.googlesource.com/v8/v8/+/master/samples/hello-world.cc
 
@@ -163,6 +145,11 @@ int main(int argc, char** argv) {
     );
 
     libc->Set(
+        v8::String::NewFromUtf8(isolate, "close"),
+        v8::FunctionTemplate::New(isolate, MojoClose)
+    );
+
+    libc->Set(
         v8::String::NewFromUtf8(isolate, "print"),
         v8::FunctionTemplate::New(isolate, Printf)
     );
@@ -192,12 +179,6 @@ int main(int argc, char** argv) {
   v8::V8::Dispose();
   v8::V8::ShutdownPlatform();
   delete create_params.array_buffer_allocator;
-
-  // TODO: setup v8 globals
-
-  // TODO: run WASM
-
-  std::cout << "client::end" << std::endl;
 
   return 0;
 }
