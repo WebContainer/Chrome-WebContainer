@@ -14,7 +14,7 @@ I am sure some kind soul will explain that part.
 cd $CHROME_SRC
 git clone https://github.com/groundwater/Chrome-WebContainers.git webcontainer
 gn build out/Default
-ninja -C out/Default webcontainerd
+ninja -C out/Default webcontainer
 npm run build
 ./out/Default/webcontainerd
 ```
