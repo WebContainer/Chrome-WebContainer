@@ -93,7 +93,7 @@ int main() {
   // Launch Child Process
   base::FilePath client_exe;
   base::PathService::Get(base::DIR_EXE, &client_exe);
-  client_exe = client_exe.AppendASCII("mocker-client");
+  client_exe = client_exe.AppendASCII("webcontainerc");
   base::CommandLine command_line(client_exe);
   base::LaunchOptions options;
   mojo::edk::PlatformChannelPair channel;
