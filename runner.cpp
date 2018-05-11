@@ -11,6 +11,8 @@
 #include "mojo/public/cpp/system/wait.h"
 #include "webcontainer/webcontainer.mojom.h"
 #include "base/run_loop.h"
+#include "base/logging.h"
+#include "sandbox/mac/sandbox_compiler.h"
 
 #include "v8/include/libplatform/libplatform.h"
 #include "v8/include/v8.h"
@@ -22,6 +24,14 @@ mojo::edk::ScopedPlatformHandle GetChannelHandle(int fd) {
 }
 
 webcontainer::SystemCallsPtr system_calls_ptr;
+
+void EnableSandbox() {
+  std::string sandbox_profile("(version 1)");
+  sandbox::SandboxCompiler sandbox_compiler(sandbox_profile);
+  std::string err_str;
+  bool success = sandbox_compiler.CompileAndApplyProfile(&err_str);
+  DLOG_IF(ERROR, !success) << "Failed to enable sandbox: " << err_str;
+}
 
 // Enumerate syscalls we want to forward over Mojo.
 
@@ -103,6 +113,14 @@ int main(int argc, char** argv) {
 
   CHECK(primordial_pipe.is_valid());
 
+  v8::V8::InitializeICUDefaultLocation(argv[0]);
+  v8::V8::InitializeExternalStartupData(argv[0]);
+  v8::Platform* platform = v8::platform::CreateDefaultPlatform();
+  v8::V8::InitializePlatform(platform);
+  v8::V8::Initialize();
+
+  EnableSandbox();
+
   base::MessageLoop message_loop;
   base::RunLoop run_loop;
   system_calls_ptr.Bind(webcontainer::SystemCallsPtrInfo(std::move(primordial_pipe), 0));
@@ -111,16 +129,10 @@ int main(int argc, char** argv) {
 
   // std::unique_ptr<v8::Platform> platform = v8::platform::NewDefaultPlatform();
   
-  v8::V8::InitializeICUDefaultLocation(argv[0]);
-  v8::V8::InitializeExternalStartupData(argv[0]);
-
-  v8::Platform* platform = v8::platform::CreateDefaultPlatform();
 
   //PumpMessageLoop
   //https://cs.chromium.org/chromium/src/v8/src/d8.cc?type=cs&q=PumpMessageLoop&l=2970-2973
 
-  v8::V8::InitializePlatform(platform);
-  v8::V8::Initialize();
 
   v8::Isolate::CreateParams create_params;
   create_params.array_buffer_allocator = v8::ArrayBuffer::Allocator::NewDefaultAllocator();

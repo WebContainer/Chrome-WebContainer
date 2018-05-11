@@ -23,6 +23,7 @@ executable("webcontainerc") {
     "runner.cpp",
   ]
   deps = [
+    "//sandbox",
     "//base",
     "//mojo/edk",
     "//v8",
