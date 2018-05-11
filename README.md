@@ -1,7 +1,9 @@
 # WebContainers
 
-A web container is a brokered POSIX implementation in WebAssembly.
+A web container is a brokered POSIX implementation for WebAssembly.
 Applications running in web containers have mediated access to the underlying system.
+We use Chromium with the intent to fully sandbox any running web containers.
+We use Chromium's cross-platform IPC system [mojo](https://chromium.googlesource.com/chromium/src/+/master/mojo/README.md) to mediate access between the running WebAssembly and underlying operating system.
 
 The current proof-of-concept barely works. Don't try it.
 
@@ -19,15 +21,15 @@ npm run build
 ./out/Default/webcontainerd
 ```
 
-# GOAL
+# Implementation
 
-1. WASM binary. See [WASM C Example](https://github.com/groundwater/wasm-c-example).
-2. create a libc that uses mojo to perform any privileged libc operations
-    - e.g. `open()` or `socket()`
+Given a WASM binary. E.g. see [WASM C Example](https://github.com/groundwater/wasm-c-example). We create a libc-compatible system which that _wasm_ binary can interact with e.g. `open()` or `socket()`.
+
+Those _system calls_ requiring I/O will be brokered through a privileged process.
 
 ```
 (sandbox)                 (privileged)
-  render                      node
+webcontainer                 broker
     |                          |
    open                        |
     |   ------(mojo IPC)-----> |
@@ -37,6 +39,19 @@ npm run build
     | <------(mojo IPC)------- |
     |                          |
 ```
+
+# Status
+
+- [x] Compatible WASM toolchain in LLVM
+  - See [WASM C Example](https://github.com/groundwater/wasm-c-example)
+- [x] Mojo IPC Scaffolding to privileged process
+- [ ] Working Examples
+  - [x] `open`/`read`/`close` currently in `test.wasm`
+  - [ ] `socket`/`listen`/`accept`
+- [ ] Sandboxed `webcontainerc` process
+- [ ] Security policy in `webcontainerd` broker
+  - [ ] filesystem restrictions
+  - [ ] network restrictions
 
 # Notes
 
