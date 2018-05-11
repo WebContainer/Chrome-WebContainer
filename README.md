@@ -33,7 +33,7 @@ webcontainer                 broker
    open                        |
     |   ------(mojo IPC)-----> |
     |                          |
-  (waiting)                 libc.open
+  (waiting)             Chromium::OpenFile
     |                          |
     | <------(mojo IPC)------- |
     |                          |
