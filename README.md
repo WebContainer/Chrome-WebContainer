@@ -7,11 +7,16 @@ The current proof-of-concept barely works. Don't try it.
 
 # Setup
 
+You _need_ a Chrome checkout for this to work.
+I am sure some kind soul will explain that part.
+
 ```
 cd $CHROME_SRC
-git clone https://github.com/groundwater/chrome-groundwater.git groundwater
+git clone https://github.com/groundwater/Chrome-WebContainers.git webcontainer
 gn build out/Default
-ninja -C out/Default groundwater
+ninja -C out/Default webcontainerd
+npm run build
+./out/Default/webcontainerd
 ```
 
 # GOAL

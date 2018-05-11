@@ -1,13 +1,13 @@
 import("//mojo/public/tools/bindings/mojom.gni")
 
-group("groundwater") {
+group("webcontainer") {
   deps = [
-    ":mocker-server",
-    ":mocker-client",
+    ":webcontainerd",
+    ":webcontainerc",
   ]
 }
 
-executable("mocker-server") {
+executable("webcontainerd") {
   sources = [
     "main.cpp",
   ]
@@ -18,7 +18,7 @@ executable("mocker-server") {
   ]
 }
 
-executable("mocker-client") {
+executable("webcontainerc") {
   sources = [
     "runner.cpp",
   ]
@@ -33,6 +33,6 @@ executable("mocker-client") {
 
 mojom("mojom") {
   sources = [
-      "groundwater.mojom",
+      "webcontainer.mojom",
   ]
 }

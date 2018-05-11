@@ -25,13 +25,13 @@
 #include "mojo/public/cpp/bindings/binding.h"
 #include "mojo/public/cpp/system/wait.h"
 
-#include "groundwater/groundwater.mojom.h"
+#include "webcontainer/webcontainer.mojom.h"
 
 // https://chromium.googlesource.com/chromium/src/+/master/mojo/edk/embedder/README.md#Connecting-Two-Processes
 
-class SystemCallsImpl : public groundwater::SystemCalls {
+class SystemCallsImpl : public webcontainer::SystemCalls {
 public:
-  explicit SystemCallsImpl(groundwater::SystemCallsRequest request)
+  explicit SystemCallsImpl(webcontainer::SystemCallsRequest request)
     : binding_(this, std::move(request)) {}
 
   void Open(const std::string& filepath, OpenCallback callback) override {
@@ -64,7 +64,7 @@ public:
   }
 
 private:
-  mojo::Binding<groundwater::SystemCalls> binding_;
+  mojo::Binding<webcontainer::SystemCalls> binding_;
 
   DISALLOW_COPY_AND_ASSIGN(SystemCallsImpl);
 };
@@ -116,7 +116,7 @@ int main() {
   base::MessageLoop message_loop;
   base::RunLoop run_loop;
 
-  SystemCallsImpl impl(groundwater::SystemCallsRequest(std::move(primordial_pipe)));
+  SystemCallsImpl impl(webcontainer::SystemCallsRequest(std::move(primordial_pipe)));
 
   run_loop.Run();
 

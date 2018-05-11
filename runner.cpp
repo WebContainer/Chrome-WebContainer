@@ -9,7 +9,7 @@
 #include "mojo/edk/embedder/incoming_broker_client_invitation.h"
 #include "mojo/edk/embedder/connection_params.h"
 #include "mojo/public/cpp/system/wait.h"
-#include "groundwater/groundwater.mojom.h"
+#include "webcontainer/webcontainer.mojom.h"
 #include "base/run_loop.h"
 
 #include "v8/include/libplatform/libplatform.h"
@@ -21,7 +21,7 @@ mojo::edk::ScopedPlatformHandle GetChannelHandle(int fd) {
     return mojo::edk::ScopedPlatformHandle(mojo::edk::PlatformHandle(fd));
 }
 
-groundwater::SystemCallsPtr system_calls_ptr;
+webcontainer::SystemCallsPtr system_calls_ptr;
 
 // Enumerate syscalls we want to forward over Mojo.
 
@@ -105,7 +105,7 @@ int main(int argc, char** argv) {
 
   base::MessageLoop message_loop;
   base::RunLoop run_loop;
-  system_calls_ptr.Bind(groundwater::SystemCallsPtrInfo(std::move(primordial_pipe), 0));
+  system_calls_ptr.Bind(webcontainer::SystemCallsPtrInfo(std::move(primordial_pipe), 0));
 
   // from https://chromium.googlesource.com/v8/v8/+/master/samples/hello-world.cc
 

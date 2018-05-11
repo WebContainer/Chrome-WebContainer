@@ -1,4 +1,4 @@
-module groundwater;
+module webcontainer;
 
 interface SystemCalls {
     [Sync]
