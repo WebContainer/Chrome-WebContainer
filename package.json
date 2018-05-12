@@ -4,7 +4,7 @@
   "description": "``` cd $CHROME_SRC git clone https://github.com/groundwater/chrome-groundwater.git groundwater gn build out/Default ninja -C out/Default groundwater ```",
   "main": "index.js",
   "scripts": {
-    "build": "browserify bundle.js -o initrd"
+    "build": "browserify bundle.js -o gen/initrd"
   },
   "repository": {
     "type": "git",
