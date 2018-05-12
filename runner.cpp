@@ -17,6 +17,8 @@
 #include "v8/include/libplatform/libplatform.h"
 #include "v8/include/v8.h"
 
+#include "shared.h"
+
 // You write this. It acquires the ScopedPlatformHandle that was passed by
 // whomever launched this process (i.e. LaunchCoolChildProcess above).
 mojo::edk::ScopedPlatformHandle GetChannelHandle(int fd) {
@@ -32,7 +34,7 @@ void EnableSandbox() {
   sandbox::SandboxCompiler sandbox_compiler(sandbox_profile);
   std::string err_str;
   bool success = sandbox_compiler.CompileAndApplyProfile(&err_str);
-  DLOG_IF(ERROR, !success) << "Failed to enable sandbox: " << err_str;
+  LOG_IF(FATAL, !success) << "Failed to enable sandbox: " << err_str;
 }
 
 // Enumerate syscalls we want to forward over Mojo.
@@ -81,7 +83,7 @@ void MojoClose(const v8::FunctionCallbackInfo<v8::Value> &info) {
   system_calls_ptr->Close(fd);
 }
 
-void Printf(const v8::FunctionCallbackInfo<v8::Value> &info) {
+void MojoPrintf(const v8::FunctionCallbackInfo<v8::Value> &info) {
   v8::Isolate *isolate = info.GetIsolate();
   v8::Local<v8::Value> arg0 = info[0];
   v8::Local<v8::String> fileStr = arg0->ToString();
@@ -112,7 +114,7 @@ int main(int argc, char **argv) {
 
   CHECK(!fp.empty());
 
-  std::cout << "WASM Bundle: " << fp.value() << std::endl;
+  DLOG(INFO) << "WASM Bundle: " << fp.value();
 
   int64_t file_size = -1;
   CHECK(base::GetFileSize(fp, &file_size));
@@ -135,7 +137,7 @@ int main(int argc, char **argv) {
           mojo::edk::TransportProtocol::kLegacy);
 
   mojo::ScopedMessagePipeHandle primordial_pipe;
-  primordial_pipe = invitation->ExtractMessagePipe("pretty_cool_pipe");
+  primordial_pipe = invitation->ExtractMessagePipe(WEBCONTAINER_SYSTEM_CALL_PIPE);
 
   CHECK(primordial_pipe.is_valid());
 
@@ -179,13 +181,10 @@ int main(int argc, char **argv) {
               v8::FunctionTemplate::New(isolate, MojoOpen));
     libc->Set(v8::String::NewFromUtf8(isolate, "read"),
               v8::FunctionTemplate::New(isolate, MojoRead));
-
     libc->Set(v8::String::NewFromUtf8(isolate, "close"),
               v8::FunctionTemplate::New(isolate, MojoClose));
-
     libc->Set(v8::String::NewFromUtf8(isolate, "print"),
-              v8::FunctionTemplate::New(isolate, Printf));
-
+              v8::FunctionTemplate::New(isolate, MojoPrintf));
     libc->Set(v8::String::NewFromUtf8(isolate, "exit"),
               v8::FunctionTemplate::New(isolate, MojoExit));
 
@@ -215,14 +214,19 @@ int main(int argc, char **argv) {
                            context->Global());
 
     // JavaScript executes!
+    //
+    //----- ALERT -----//
+    // This is the first time untrusted code executes
+    //----- ALERT -----//
     script->Run(context).ToLocalChecked();
 
     // our quick and dirty event loop
-    while (continue_js_loop && v8::platform::PumpMessageLoop(
-        platform, isolate, v8::platform::MessageLoopBehavior::kWaitForWork)) {
+    while (continue_js_loop &&
+           v8::platform::PumpMessageLoop(
+               platform, isolate,
+               v8::platform::MessageLoopBehavior::kWaitForWork)) {
       isolate->RunMicrotasks();
     }
-
   }
 
   isolate->Dispose();
@@ -230,7 +234,7 @@ int main(int argc, char **argv) {
   v8::V8::ShutdownPlatform();
   delete create_params.array_buffer_allocator;
 
-  std::cout << "DONE:" << exit_code << std::endl;
+  DLOG(INFO) << "DONE:" << exit_code;
 
   return exit_code;
 }

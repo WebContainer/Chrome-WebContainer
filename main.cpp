@@ -8,10 +8,9 @@
 #include <sys/uio.h>
 #include <unistd.h>
 
-#include "base/threading/thread.h"
-
 // https://cs.chromium.org/chromium/src/mojo/edk/BUILD.gn?sq=package:chromium&dr&l=8-9
 #include "base/command_line.h"
+#include "base/logging.h"
 #include "base/macros.h"
 #include "base/path_service.h"
 #include "base/process/launch.h"
@@ -25,9 +24,12 @@
 #include "mojo/public/cpp/system/wait.h"
 
 #include "webcontainer/webcontainer.mojom.h"
+#include "shared.h"
 
 // https://chromium.googlesource.com/chromium/src/+/master/mojo/edk/embedder/README.md#Connecting-Two-Processes
 
+// After this has been set, call `quitClosure->Run()` will terminate the associated RunLoop
+// This means `run_loop->Run()` will stop blocking and the process can exit
 base::Closure quitClosure;
 
 class SystemCallsImpl : public webcontainer::SystemCalls {
@@ -78,11 +80,18 @@ private:
 int main(int argc, char **argv) {
   CHECK(base::CommandLine::Init(argc, argv));
 
-  base::CommandLine* cmd = base::CommandLine::ForCurrentProcess();
+  base::CommandLine *cmd = base::CommandLine::ForCurrentProcess();
 
   if (cmd->GetArgs().size() < 2) {
-    std::cout << "Usage: " << argv[0] << " INIT_JS_BUNDLE WASM_BUNDLE [OPTIONS]" << std::endl;
+    LOG(WARNING) << "Insufficient Arguments";
+    std::cout << "Usage: " << argv[0] << " INIT_JS_BUNDLE WASM_BUNDLE [OPTIONS]"
+              << std::endl;
     return 1;
+  }
+
+  std::string webcontainerc_command = "webcontainerc";
+  if (cmd->HasSwitch("webcontainerc-command")) {
+    webcontainerc_command = cmd->GetSwitchValueASCII("webcontainerc-command");
   }
 
   // https://chromium.googlesource.com/chromium/src/+/master/mojo/edk/embedder/
@@ -103,12 +112,12 @@ int main(int argc, char **argv) {
   mojo::edk::OutgoingBrokerClientInvitation invitation;
 
   mojo::ScopedMessagePipeHandle primordial_pipe =
-      invitation.AttachMessagePipe("pretty_cool_pipe");
+      invitation.AttachMessagePipe(WEBCONTAINER_SYSTEM_CALL_PIPE);
 
   // Launch Child Process
   base::FilePath client_exe;
   base::PathService::Get(base::DIR_EXE, &client_exe);
-  client_exe = client_exe.AppendASCII("webcontainerc");
+  client_exe = client_exe.AppendASCII(webcontainerc_command);
   base::CommandLine command_line(client_exe);
   base::LaunchOptions options;
   mojo::edk::PlatformChannelPair channel;
@@ -143,19 +152,23 @@ int main(int argc, char **argv) {
   SystemCallsImpl impl(
       webcontainer::SystemCallsRequest(std::move(primordial_pipe)));
 
-  std::cout << "BEGIN_RUN" << std::endl;
+  DLOG(INFO) << "BEGIN_RUN";
 
+  // INFO: https://cs.chromium.org/chromium/src/base/run_loop.h?type=cs&q=QuitClosure&sq=package:chromium&l=115-118
   quitClosure = run_loop.QuitClosure();
-  
+
+  // This blocks until quitClosure->Run() is called asynchronously
   run_loop.Run();
 
+  // Copy the exit code from the child `webcontainerc` process
   // On POSIX, if the process has been signaled then |exit_code| is set to -1.
   int childExitCode = 0;
   if (!p.WaitForExit(&childExitCode)) {
+    LOG(WARNING) << "Error waiting for child to exit";
     return -2;
   }
 
-  std::cout << "DONE_EXIT:" << childExitCode << std::endl;
+  DLOG(INFO) << "DONE_EXIT:" << childExitCode;
 
   return childExitCode;
 }
