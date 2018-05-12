@@ -1,6 +1,6 @@
-const {print, open, read} = wlibc
+const {print, log, open, read} = wlibc
 
-print("WebContainer::Init")
+log("WebContainer::Init")
 
 __GLOBAL__.window = {}
 
@@ -96,13 +96,13 @@ buffer.set(new Uint8Array(argvPointers.buffer), st)
 const o = WebAssembly
 .instantiate(__WASMBUNDLE__, imports)
 .then(r => {
-    print("WebContainer::Begin")
+    log("WebContainer::Begin")
     const exit = r.instance.exports.main(argc, st)
-    print("WebContainer::Exit Code(" + exit + ")")
+    log("WebContainer::Exit Code(" + exit + ")")
     return exit
 })
 .catch(e => {
-    print(e.message)
+    log(e.message)
     wlibc.exit(1)
 })
 .then(code => wlibc.exit(code||0))

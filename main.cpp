@@ -1,5 +1,5 @@
 #include <iostream>
-#include <string> // std::string, std::to_string
+#include <string>
 #include <vector>
 
 #include <errno.h>
@@ -8,7 +8,6 @@
 #include <sys/uio.h>
 #include <unistd.h>
 
-// https://cs.chromium.org/chromium/src/mojo/edk/BUILD.gn?sq=package:chromium&dr&l=8-9
 #include "base/command_line.h"
 #include "base/logging.h"
 #include "base/macros.h"
@@ -26,6 +25,8 @@
 #include "webcontainer/webcontainer.mojom.h"
 #include "shared.h"
 
+// Notes:
+// https://cs.chromium.org/chromium/src/mojo/edk/BUILD.gn?sq=package:chromium&dr&l=8-9
 // https://chromium.googlesource.com/chromium/src/+/master/mojo/edk/embedder/README.md#Connecting-Two-Processes
 
 // After this has been set, call `quitClosure->Run()` will terminate the associated RunLoop
@@ -73,6 +74,11 @@ public:
     std::move(callback).Run();
   }
 
+  void Log(const std::string &message, LogCallback callback) override {
+    std::cerr << message << std::endl;
+    std::move(callback).Run();
+  }
+
 private:
   mojo::Binding<webcontainer::SystemCalls> binding_;
 
@@ -81,7 +87,6 @@ private:
 
 int main(int argc, char **argv) {
   CHECK(base::CommandLine::Init(argc, argv));
-
   base::CommandLine *cmd = base::CommandLine::ForCurrentProcess();
 
   if (cmd->GetArgs().size() < 2) {
@@ -116,7 +121,10 @@ int main(int argc, char **argv) {
   mojo::ScopedMessagePipeHandle primordial_pipe =
       invitation.AttachMessagePipe(WEBCONTAINER_SYSTEM_CALL_PIPE);
 
+  // --------------------
   // Launch Child Process
+  // --------------------
+
   base::FilePath client_exe;
   base::PathService::Get(base::DIR_EXE, &client_exe);
   client_exe = client_exe.AppendASCII(webcontainerc_command);
@@ -126,20 +134,24 @@ int main(int argc, char **argv) {
   channel.PrepareToPassClientHandleToChildProcess(&command_line,
                                                   &options.fds_to_remap);
 
+  // setup the child process to launch to requested initrd and wasm bundles
   command_line.AppendSwitchPath(
       "initrd",
-      base::FilePath(base::CommandLine::ForCurrentProcess()->GetArgs()[0]));
+      base::FilePath(cmd->GetArgs()[0]));
 
   command_line.AppendSwitchPath(
       "wasm-bundle",
-      base::FilePath(base::CommandLine::ForCurrentProcess()->GetArgs()[1]));
+      base::FilePath(cmd->GetArgs()[1]));
 
   command_line.AppendSwitchASCII(
       "wasm-args",
-      base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII("wasm-args"));
+      cmd->GetSwitchValueASCII("wasm-args"));
 
+  // Actually start child process with given command_line
   base::Process p = base::LaunchProcess(command_line, options);
   CHECK(p.IsValid());
+  
+  // Something about the Mojo IPC handshake
   channel.ChildProcessLaunched();
 
   // At this point it's safe for |invitation| to go out of scope and nothing
@@ -148,6 +160,7 @@ int main(int argc, char **argv) {
                                   mojo::edk::TransportProtocol::kLegacy,
                                   channel.PassServerHandle()));
 
+  // Mojo Magic necessary before SystemCallsImpl can be instantiated.
   base::MessageLoop message_loop;
   base::RunLoop run_loop;
 
@@ -172,5 +185,6 @@ int main(int argc, char **argv) {
 
   DLOG_IF(ERROR, childExitCode != 0) << "Bad Exit Code";
 
+  // webcontainerd exits with the same code as the wasm-bundle
   return exitCode;
 }

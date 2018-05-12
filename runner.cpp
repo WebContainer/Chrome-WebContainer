@@ -28,17 +28,17 @@ mojo::edk::ScopedPlatformHandle GetChannelHandle(int fd) {
 webcontainer::SystemCallsPtr system_calls_ptr;
 bool continue_js_loop = true;
 
-void EnableSandbox() {
+bool EnableSandbox() {
   std::string sandbox_profile("(version 1)");
   sandbox::SandboxCompiler sandbox_compiler(sandbox_profile);
   std::string err_str;
-  bool success = sandbox_compiler.CompileAndApplyProfile(&err_str);
-  LOG_IF(FATAL, !success) << "Failed to enable sandbox: " << err_str;
+  return sandbox_compiler.CompileAndApplyProfile(&err_str);
 }
 
-// Enumerate syscalls we want to forward over Mojo.
+// ------------------------------------------------
+// Enumerate syscalls we want to forward over Mojo
+// ------------------------------------------------
 
-// the open() call
 void MojoOpen(const v8::FunctionCallbackInfo<v8::Value> &info) {
   v8::Isolate *isolate = info.GetIsolate();
 
@@ -91,6 +91,13 @@ void MojoPrintf(const v8::FunctionCallbackInfo<v8::Value> &info) {
   system_calls_ptr->Print(std::string(*utf8Str));
 }
 
+void MojoLog(const v8::FunctionCallbackInfo<v8::Value> &info) {
+  v8::Isolate *isolate = info.GetIsolate();
+  v8::String::Utf8Value utf8Str(isolate, info[0]->ToString());
+
+  system_calls_ptr->Log(std::string(*utf8Str));
+}
+
 #include <fstream>
 #include <streambuf>
 #include <string>
@@ -104,63 +111,70 @@ int main(int argc, char **argv) {
 
   base::CommandLine *command_line = base::CommandLine::ForCurrentProcess();
 
+  // We inject the path for the wasm-bundle, and initrd-js-bundle.
+  // No Sandbox is enabled yet, so we should have access to the filesystem.
   base::FilePath fp = command_line->GetSwitchValuePath("wasm-bundle");
+  CHECK(!fp.empty());
+  
   base::FilePath initrdFile = command_line->GetSwitchValuePath("initrd");
-
   std::string initrd;
-
   CHECK(base::ReadFileToString(initrdFile, &initrd));
 
-  CHECK(!fp.empty());
-
   DLOG(INFO) << "WASM Bundle: " << fp.value();
+  DLOG(INFO) << "Init JS Bundle: " << initrdFile.value();
 
+  // Read the WASM bundle into memory
   int64_t file_size = -1;
   CHECK(base::GetFileSize(fp, &file_size));
   std::vector<char> wasmbuff(file_size);
   int out = base::ReadFile(fp, wasmbuff.data(), file_size);
   CHECK(out >= 0);
 
-  // Setup IPC with privileged process
-
+  // Setup IPC with privileged process.
+  // Most of this is pieced together from Mojo documentation, examples, 
+  // and a lot of luck.
   base::Thread ipc_thread("ipc!");
   ipc_thread.StartWithOptions(
       base::Thread::Options(base::MessageLoop::TYPE_IO, 0));
-
   mojo::edk::ScopedIPCSupport ipc_support(
       ipc_thread.task_runner(),
       mojo::edk::ScopedIPCSupport::ShutdownPolicy::CLEAN);
-
   auto invitation =
       mojo::edk::IncomingBrokerClientInvitation::AcceptFromCommandLine(
           mojo::edk::TransportProtocol::kLegacy);
-
   mojo::ScopedMessagePipeHandle primordial_pipe;
-  primordial_pipe = invitation->ExtractMessagePipe(WEBCONTAINER_SYSTEM_CALL_PIPE);
 
+  // Once the setup dance is done, you can extract named pipes.
+  // For each Mojo _Interface_ I think you need a different named pipe.
+  primordial_pipe = invitation->ExtractMessagePipe(WEBCONTAINER_SYSTEM_CALL_PIPE);
   CHECK(primordial_pipe.is_valid());
 
   v8::V8::InitializeICUDefaultLocation(argv[0]);
   v8::V8::InitializeExternalStartupData(argv[0]);
   v8::Platform *platform = v8::platform::CreateDefaultPlatform();
   v8::V8::InitializePlatform(platform);
-  v8::V8::Initialize();
+  CHECK(v8::V8::Initialize());
 
-  EnableSandbox();
+  // This _must_ follow the v8 initialization.
+  // Something about external data.
+  CHECK(EnableSandbox());
 
+  // -------------------------
+  // SANDBOX ENABLED FROM HERE
+  // -------------------------
+  
+  // This is all magic. I don't get why you need MessageLoop,
+  // and RunLoop on the stack, but you do.
+  // Just live with it.
   base::MessageLoop message_loop;
-  base::RunLoop run_loop;
+  base::RunLoop run_loop;  
+  // The above is necessary to Bind your pointer to a pipe.
+  // I think because messages are dispatched on a separate thread.
   system_calls_ptr.Bind(
       webcontainer::SystemCallsPtrInfo(std::move(primordial_pipe), 0));
 
-  // from
+  // From:
   // https://chromium.googlesource.com/v8/v8/+/master/samples/hello-world.cc
-
-  // std::unique_ptr<v8::Platform> platform =
-  // v8::platform::NewDefaultPlatform();
-
-  // PumpMessageLoop
-  // https://cs.chromium.org/chromium/src/v8/src/d8.cc?type=cs&q=PumpMessageLoop&l=2970-2973
 
   v8::Isolate::CreateParams create_params;
   create_params.array_buffer_allocator =
@@ -170,10 +184,10 @@ int main(int argc, char **argv) {
   {
     v8::Isolate::Scope isolate_scope(isolate);
     v8::HandleScope handle_scope(isolate);
-
     v8::Local<v8::ObjectTemplate> global = v8::ObjectTemplate::New(isolate);
-    v8::Local<v8::ObjectTemplate> libc = v8::ObjectTemplate::New(isolate);
 
+    // We create a global `wlibc` which exposes relevant mojoable functions
+    v8::Local<v8::ObjectTemplate> libc = v8::ObjectTemplate::New(isolate);
     global->Set(v8::String::NewFromUtf8(isolate, "wlibc"), libc);
 
     libc->Set(v8::String::NewFromUtf8(isolate, "open"),
@@ -184,13 +198,14 @@ int main(int argc, char **argv) {
               v8::FunctionTemplate::New(isolate, MojoClose));
     libc->Set(v8::String::NewFromUtf8(isolate, "print"),
               v8::FunctionTemplate::New(isolate, MojoPrintf));
+    libc->Set(v8::String::NewFromUtf8(isolate, "log"),
+              v8::FunctionTemplate::New(isolate, MojoLog));
     libc->Set(v8::String::NewFromUtf8(isolate, "exit"),
               v8::FunctionTemplate::New(isolate, MojoExit));
 
+    // Setup the JS script
     v8::Local<v8::Context> context = v8::Context::New(isolate, NULL, global);
-
     v8::Context::Scope context_scope(context);
-
     v8::Local<v8::String> source =
         v8::String::NewFromUtf8(isolate, initrd.c_str(),
                                 v8::NewStringType::kNormal)
@@ -198,17 +213,22 @@ int main(int argc, char **argv) {
     v8::Local<v8::Script> script =
         v8::Script::Compile(context, source).ToLocalChecked();
 
+    // An ArrayBuffer of the WASM bundle injected into the JS context
     v8::Local<v8::ArrayBuffer> wasmArrayBuffer =
         v8::ArrayBuffer::New(isolate, file_size);
-
     memcpy(wasmArrayBuffer->GetContents().Data(), wasmbuff.data(), file_size);
     context->Global()->Set(v8::String::NewFromUtf8(isolate, "__WASMBUNDLE__"),
                            wasmArrayBuffer);
 
+    // The CLI switch --wasm-args=... will be passed to our wasm binary as argv values
+    // Currently space-separated, and totally needs more work.
+    // TODO: proper argv encoding/parsing
     std::string wasmArgs = command_line->GetSwitchValueASCII("wasm-args");
     context->Global()->Set(v8::String::NewFromUtf8(isolate, "__WASMARGS__"),
                            v8::String::NewFromUtf8(isolate, wasmArgs.c_str()));
 
+    // We use __GLOBAL__ instead of global because the browserify process
+    // creates its own `global` which would shadow ours.
     context->Global()->Set(v8::String::NewFromUtf8(isolate, "__GLOBAL__"),
                            context->Global());
 
@@ -221,17 +241,22 @@ int main(int argc, char **argv) {
 
     // our quick and dirty event loop
     while (continue_js_loop &&
-           v8::platform::PumpMessageLoop(
+            // PumpMessageLoop
+            // https://cs.chromium.org/chromium/src/v8/src/d8.cc?type=cs&q=PumpMessageLoop&l=2970-2973
+            v8::platform::PumpMessageLoop(
                platform, isolate,
                v8::platform::MessageLoopBehavior::kWaitForWork)) {
       isolate->RunMicrotasks();
     }
   }
 
+  // v8 cleanup from example on embedding v8
   isolate->Dispose();
   v8::V8::Dispose();
   v8::V8::ShutdownPlatform();
   delete create_params.array_buffer_allocator;
 
+  // The exit code of the WASM bundle is sent via Mojo.
+  // We use this exit code to indicate if webcontainerc is running okay.
   return 0;
 }

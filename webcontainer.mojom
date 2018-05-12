@@ -10,5 +10,7 @@ interface SystemCalls {
     [Sync]
     Print(string message) => ();
     [Sync]
+    Log(string message) => ();
+    [Sync]
     Exit(int64 exitCode) => ();
 };
