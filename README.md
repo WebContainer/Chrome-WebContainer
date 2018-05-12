@@ -17,7 +17,18 @@ cd $CHROME_SRC
 git clone https://github.com/groundwater/Chrome-WebContainers.git webcontainer
 gn gen out/Default  --args='root_extra_deps=["//webcontainer"]'
 ninja -C out/Default webcontainer
-./out/Default/webcontainerd
+./out/Default/webcontainerd webcontainer/initrd webcontainer/test.wasm --wasm-args="webcontainer/HELLOWORLD"
+```
+
+The help page we should add:
+
+```
+Usage: webcontainerd INIT_JS_BUNDLE WASM_BUNDLE [OPTIONS]
+
+Options:
+
+  --wasm-args    space separated arguments sent to the WebAssembly main(int arg, char ** argv) function
+
 ```
 
 # Implementation

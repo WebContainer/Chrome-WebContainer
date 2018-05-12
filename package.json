@@ -19,6 +19,8 @@
   "homepage": "https://github.com/groundwater/chrome-groundwater#readme",
   "dependencies": {
     "browserify": "^16.2.2",
-    "sprintf-js": "^1.1.1"
+    "hexdump-js": "^0.1.0",
+    "sprintf-js": "^1.1.1",
+    "text-encoding-shim": "^1.0.0"
   }
 }

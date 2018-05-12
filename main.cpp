@@ -70,7 +70,9 @@ private:
 };
 
 
-int main() {
+int main(int argc, char ** argv) {
+  base::CommandLine::Init(argc, argv);
+  
   // https://chromium.googlesource.com/chromium/src/+/master/mojo/edk/embedder/
   mojo::edk::Init();
   base::Thread ipc_thread("ipc!");
@@ -98,7 +100,20 @@ int main() {
   base::LaunchOptions options;
   mojo::edk::PlatformChannelPair channel;
   channel.PrepareToPassClientHandleToChildProcess(&command_line, &options.fds_to_remap);
+
+  command_line.AppendSwitchPath("initrd", base::FilePath(
+    base::CommandLine::ForCurrentProcess()->GetArgs()[0]
+  ));
+
+  command_line.AppendSwitchPath("wasm-bundle", base::FilePath(
+    base::CommandLine::ForCurrentProcess()->GetArgs()[1]
+  ));
   
+  command_line.AppendSwitchASCII(
+    "wasm-args", 
+    base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII("wasm-args")
+  );
+
   base::Process p = base::LaunchProcess(command_line, options);
   DCHECK(p.IsValid());
   channel.ChildProcessLaunched();

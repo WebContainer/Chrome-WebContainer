@@ -85,13 +85,32 @@ void Printf(const v8::FunctionCallbackInfo<v8::Value> &info) {
 #include <fstream>
 #include <streambuf>
 
+#include "base/files/file_util.h"
+
 int main(int argc, char** argv) {
   
-  std::ifstream t("initrd");
-  std::string initrd((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
-
+  CHECK(base::CommandLine::Init(argc, argv));
   mojo::edk::Init();
-  base::CommandLine::Init(argc, argv);
+  
+
+  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
+  
+  base::FilePath fp = command_line->GetSwitchValuePath("wasm-bundle");
+  base::FilePath initrdFile = command_line->GetSwitchValuePath("initrd");
+  
+  std::string initrd;
+  
+  CHECK(base::ReadFileToString(initrdFile, &initrd));
+  
+  CHECK(!fp.empty());
+
+  std::cout << "WASM Bundle: " << fp.value() << std::endl;
+
+  int64_t file_size = -1;
+  CHECK(base::GetFileSize(fp, &file_size));
+  std::vector<char> wasmbuff(file_size);
+  int out = base::ReadFile(fp, wasmbuff.data(), file_size);
+  CHECK(out >= 0);
 
   // Setup IPC with privileged process
 
@@ -144,7 +163,7 @@ int main(int argc, char** argv) {
     
     v8::Local<v8::ObjectTemplate> global = v8::ObjectTemplate::New(isolate);
     v8::Local<v8::ObjectTemplate> libc = v8::ObjectTemplate::New(isolate);
-    
+
     global->Set(v8::String::NewFromUtf8(isolate, "wlibc"), libc);
     
     libc->Set(
@@ -168,9 +187,30 @@ int main(int argc, char** argv) {
 
     v8::Local<v8::Context> context = v8::Context::New(isolate, NULL, global);
 
+
     v8::Context::Scope context_scope(context);
+    
     v8::Local<v8::String> source = v8::String::NewFromUtf8(isolate, initrd.c_str(), v8::NewStringType::kNormal).ToLocalChecked();
     v8::Local<v8::Script> script = v8::Script::Compile(context, source).ToLocalChecked();
+
+    v8::Local<v8::ArrayBuffer> wasmArrayBuffer = v8::ArrayBuffer::New(isolate, file_size);
+
+    memcpy(wasmArrayBuffer->GetContents().Data(), wasmbuff.data(), file_size);
+    context->Global()->Set(
+      v8::String::NewFromUtf8(isolate, "__WASMBUNDLE__"),
+      wasmArrayBuffer
+    );
+
+    std::string wasmArgs = command_line->GetSwitchValueASCII("wasm-args");
+    context->Global()->Set(
+      v8::String::NewFromUtf8(isolate, "__WASMARGS__"),
+      v8::String::NewFromUtf8(isolate, wasmArgs.c_str())
+    );
+
+    context->Global()->Set(
+      v8::String::NewFromUtf8(isolate, "__GLOBAL__"),
+      context->Global()
+    );
 
     // JavaScript executes!
     script->Run(context).ToLocalChecked();
