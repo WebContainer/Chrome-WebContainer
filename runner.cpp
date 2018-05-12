@@ -24,6 +24,8 @@ mojo::edk::ScopedPlatformHandle GetChannelHandle(int fd) {
 }
 
 webcontainer::SystemCallsPtr system_calls_ptr;
+bool continue_js_loop = true;
+int32_t exit_code = 0;
 
 void EnableSandbox() {
   std::string sandbox_profile("(version 1)");
@@ -49,6 +51,12 @@ void MojoOpen(const v8::FunctionCallbackInfo<v8::Value> &info) {
   system_calls_ptr->Open(std::string(charStr), &fd);
 
   info.GetReturnValue().Set(v8::Number::New(isolate, fd));
+}
+
+void MojoExit(const v8::FunctionCallbackInfo<v8::Value> &info) {
+  exit_code = info[0]->Int32Value();
+  continue_js_loop = false;
+  system_calls_ptr->Exit();
 }
 
 void MojoRead(const v8::FunctionCallbackInfo<v8::Value> &info) {
@@ -178,6 +186,9 @@ int main(int argc, char **argv) {
     libc->Set(v8::String::NewFromUtf8(isolate, "print"),
               v8::FunctionTemplate::New(isolate, Printf));
 
+    libc->Set(v8::String::NewFromUtf8(isolate, "exit"),
+              v8::FunctionTemplate::New(isolate, MojoExit));
+
     v8::Local<v8::Context> context = v8::Context::New(isolate, NULL, global);
 
     v8::Context::Scope context_scope(context);
@@ -207,10 +218,11 @@ int main(int argc, char **argv) {
     script->Run(context).ToLocalChecked();
 
     // our quick and dirty event loop
-    while (v8::platform::PumpMessageLoop(
+    while (continue_js_loop && v8::platform::PumpMessageLoop(
         platform, isolate, v8::platform::MessageLoopBehavior::kWaitForWork)) {
       isolate->RunMicrotasks();
     }
+
   }
 
   isolate->Dispose();
@@ -218,5 +230,7 @@ int main(int argc, char **argv) {
   v8::V8::ShutdownPlatform();
   delete create_params.array_buffer_allocator;
 
-  return 0;
+  std::cout << "DONE:" << exit_code << std::endl;
+
+  return exit_code;
 }

@@ -9,4 +9,6 @@ interface SystemCalls {
     Read(int64 fd, int64 numBytes) => (array<uint8> bytes);
     [Sync]
     Print(string message) => ();
+    [Sync]
+    Exit() => ();
 };

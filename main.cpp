@@ -28,6 +28,8 @@
 
 // https://chromium.googlesource.com/chromium/src/+/master/mojo/edk/embedder/README.md#Connecting-Two-Processes
 
+base::Closure quitClosure;
+
 class SystemCallsImpl : public webcontainer::SystemCalls {
 public:
   explicit SystemCallsImpl(webcontainer::SystemCallsRequest request)
@@ -57,6 +59,11 @@ public:
     std::move(callback).Run(vec);
   }
 
+  void Exit(ExitCallback callback) override {
+    quitClosure.Run();
+    std::move(callback).Run();
+  }
+
   void Print(const std::string &message, PrintCallback callback) override {
     std::cout << message << std::endl;
     std::move(callback).Run();
@@ -70,6 +77,13 @@ private:
 
 int main(int argc, char **argv) {
   CHECK(base::CommandLine::Init(argc, argv));
+
+  base::CommandLine* cmd = base::CommandLine::ForCurrentProcess();
+
+  if (cmd->GetArgs().size() < 2) {
+    std::cout << "Usage: " << argv[0] << " INIT_JS_BUNDLE WASM_BUNDLE [OPTIONS]" << std::endl;
+    return 1;
+  }
 
   // https://chromium.googlesource.com/chromium/src/+/master/mojo/edk/embedder/
   mojo::edk::Init();
@@ -114,7 +128,7 @@ int main(int argc, char **argv) {
       base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII("wasm-args"));
 
   base::Process p = base::LaunchProcess(command_line, options);
-  DCHECK(p.IsValid());
+  CHECK(p.IsValid());
   channel.ChildProcessLaunched();
 
   // At this point it's safe for |invitation| to go out of scope and nothing
@@ -129,10 +143,19 @@ int main(int argc, char **argv) {
   SystemCallsImpl impl(
       webcontainer::SystemCallsRequest(std::move(primordial_pipe)));
 
+  std::cout << "BEGIN_RUN" << std::endl;
+
+  quitClosure = run_loop.QuitClosure();
+  
   run_loop.Run();
 
-  // TODO: this is never reached because Run() never returns...
-  p.WaitForExit(nullptr);
+  // On POSIX, if the process has been signaled then |exit_code| is set to -1.
+  int childExitCode = 0;
+  if (!p.WaitForExit(&childExitCode)) {
+    return -2;
+  }
 
-  return 0;
+  std::cout << "DONE_EXIT:" << childExitCode << std::endl;
+
+  return childExitCode;
 }
