@@ -27,7 +27,6 @@ mojo::edk::ScopedPlatformHandle GetChannelHandle(int fd) {
 
 webcontainer::SystemCallsPtr system_calls_ptr;
 bool continue_js_loop = true;
-int32_t exit_code = 0;
 
 void EnableSandbox() {
   std::string sandbox_profile("(version 1)");
@@ -56,9 +55,9 @@ void MojoOpen(const v8::FunctionCallbackInfo<v8::Value> &info) {
 }
 
 void MojoExit(const v8::FunctionCallbackInfo<v8::Value> &info) {
-  exit_code = info[0]->Int32Value();
+  int64_t exit_code = info[0]->Int32Value();
   continue_js_loop = false;
-  system_calls_ptr->Exit();
+  system_calls_ptr->Exit(exit_code);
 }
 
 void MojoRead(const v8::FunctionCallbackInfo<v8::Value> &info) {
@@ -234,7 +233,5 @@ int main(int argc, char **argv) {
   v8::V8::ShutdownPlatform();
   delete create_params.array_buffer_allocator;
 
-  DLOG(INFO) << "DONE:" << exit_code;
-
-  return exit_code;
+  return 0;
 }

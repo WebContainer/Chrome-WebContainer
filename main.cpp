@@ -31,6 +31,7 @@
 // After this has been set, call `quitClosure->Run()` will terminate the associated RunLoop
 // This means `run_loop->Run()` will stop blocking and the process can exit
 base::Closure quitClosure;
+int64_t exitCode = 0;
 
 class SystemCallsImpl : public webcontainer::SystemCalls {
 public:
@@ -61,7 +62,8 @@ public:
     std::move(callback).Run(vec);
   }
 
-  void Exit(ExitCallback callback) override {
+  void Exit(int64_t _exitCode, ExitCallback callback) override {
+    exitCode = _exitCode;
     quitClosure.Run();
     std::move(callback).Run();
   }
@@ -168,7 +170,7 @@ int main(int argc, char **argv) {
     return -2;
   }
 
-  DLOG(INFO) << "DONE_EXIT:" << childExitCode;
+  DLOG_IF(ERROR, childExitCode != 0) << "Bad Exit Code";
 
-  return childExitCode;
+  return exitCode;
 }
