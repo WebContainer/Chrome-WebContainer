@@ -26,6 +26,18 @@ function malloc(s) {
     malloc_offset = malloc_offset + s
     return next
 }
+const __NR_openat = 56
+const __NR_read = 63
+const __NR_close = 57
+
+function nullTerminatedString(i) {
+    let s = ""
+    while(buffer[i] !== 0) {
+        s += String.fromCharCode(buffer[i])
+        i++
+    }
+    return s
+}
 
 const imports = {
     env: {
@@ -61,6 +73,61 @@ const imports = {
             }
             wlibc.print(s)
         },
+        __syscall: (syscallno, argsPointer) => {
+            const args = new Int32Array(buffer.slice(argsPointer, argsPointer + 4 * 7).buffer)
+            switch (syscallno) {
+                case __NR_openat: {
+                    const relfd = args[0] // "relative" fd to openat
+                    const filenamePtr = args[1]
+                    const filename = nullTerminatedString(filenamePtr)
+                    const flags = args[2]
+                    const mode = args[3]
+                    const fd = wlibc.open(filename)
+                    return fd
+                }; break;
+                case __NR_read: {
+                    const [fd, ptr, count] = args
+                    const data = wlibc.read(fd, count)
+                    const bufa = new Uint8Array(data)
+                    
+                    for(let i=0; i < bufa.length; i++) {
+                        buffer[ptr + i] = bufa[i]
+                    }
+                    return bufa.length;
+                }; break;
+                case __NR_close: {
+                    const [fd] = args
+                    return wlibc.close(fd)
+                }; break;
+                default: {
+                    print(`Don't know how to implement ${syscallno} with args ${args}`)
+                    return -1
+                }; break;
+            }
+        },
+        a_ll: () => {},
+        a_sc: () => {},
+        a_barrier: () => {},
+        a_cas: () => {},
+        a_ll_p: () => {},
+        a_sc_p: () => {},
+        a_cas_p: () => {},
+        a_ctz_64: () => {},
+        a_clz_64: () => {},
+        __netf2: () => {},
+        __multf3: () => {},
+        __extenddftf2: () => {},
+        __trunctfsf2: () => {},
+        __trunctfdf2: () => {},
+        __subtf3: () => {},
+        __unordtf2: () => {},
+        __addtf3: () => {},
+        __netf2: () => {},
+        __multf3: () => {},
+        __fixtfsi: () => {},
+        __floatsitf: () => {},
+        __fixunstfsi: () => {},
+        __floatunsitf: () => {},
         malloc,
         _start() {},
     },
