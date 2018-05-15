@@ -29,6 +29,8 @@ function malloc(s) {
 const __NR_openat = 56
 const __NR_read = 63
 const __NR_close = 57
+const __NR_writev = 66
+const __NR_ioctl = 29
 
 function nullTerminatedString(i) {
     let s = ""
@@ -105,29 +107,34 @@ const imports = {
                 }; break;
             }
         },
-        a_ll: () => {},
-        a_sc: () => {},
-        a_barrier: () => {},
-        a_cas: () => {},
-        a_ll_p: () => {},
-        a_sc_p: () => {},
-        a_cas_p: () => {},
-        a_ctz_64: () => {},
-        a_clz_64: () => {},
-        __netf2: () => {},
-        __multf3: () => {},
-        __extenddftf2: () => {},
-        __trunctfsf2: () => {},
-        __trunctfdf2: () => {},
-        __subtf3: () => {},
-        __unordtf2: () => {},
-        __addtf3: () => {},
-        __netf2: () => {},
-        __multf3: () => {},
-        __fixtfsi: () => {},
-        __floatsitf: () => {},
-        __fixunstfsi: () => {},
-        __floatunsitf: () => {},
+        __syscall1: (syscallno, a) => {
+            print(`Syscall1 ${syscallno}, ${a}`)
+        },
+        __syscall3: (syscallno, a, b, c) => {
+            print(`Syscall3 ${syscallno}, ${a}, ${b}, ${c}`)
+            switch (syscallno) {
+                case __NR_writev: {
+                    const fd = a;
+                    const iovPtr = b;
+                    const iovCnt = c;
+                    const iovs = new Uint32Array(buffer.slice(iovPtr, iovPtr + 8 * iovCnt).buffer)
+                    let bytesWritten = 0
+                    for (let i = 0; i < iovCnt; i++) {
+                        const dataPtr = iovs[i*2+0]
+                        const byteCount = iovs[i*2+1]
+                        bytesWritten += byteCount
+                        const data = new Uint8Array(buffer.slice(dataPtr, dataPtr + byteCount).buffer)
+                        let s = ""
+                        for (let j = 0; j < byteCount; j++) {
+                            s += String.fromCharCode(data[j])
+                        }
+                        print(`Pretend the string '${s}' was written to fd ${fd}`)
+                    }
+                    
+                    return bytesWritten
+                }; break;
+            }
+        },
         malloc,
         _start() {},
     },
