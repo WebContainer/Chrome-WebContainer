@@ -45,28 +45,6 @@ function nullTerminatedString(i) {
 const imports = {
     env: {
         memory,
-        close: (fd) => {
-            return wlibc.close(fd)
-        },
-        read: (fd, ptr, len) => {
-            const buf = wlibc.read(fd, len)
-            const bufa = new Uint8Array(buf)
-            
-            for(let i=0; i < bufa.length; i++) {
-                buffer[ptr + i] = bufa[i]
-            }
-
-            return bufa.length
-        },
-        open: (pathPtr) => {
-            let s = ""
-            let i = pathPtr
-            while(buffer[i] !== 0) {
-                s += String.fromCharCode(buffer[i])
-                i++
-            }
-            return wlibc.open(s)
-        },
         print: (arg) => {
             let s = ""
             let i = arg
@@ -129,14 +107,120 @@ const imports = {
                         for (let j = 0; j < byteCount; j++) {
                             s += String.fromCharCode(data[j])
                         }
-                        print(`Pretend the string '${s}' was written to fd ${fd}`)
+                        print(s)
                     }
                     
                     return bytesWritten
                 }; break;
             }
         },
-        malloc,
+        // See: https://gcc.gnu.org/onlinedocs/gcc-3.4.0/gccint/Soft-float-library-routines.html
+        __addsf3: (a, b) => a + b,
+        __adddf3: (a, b) => a + b,
+        __addtf3: (a, b) => a + b,
+        __addxf3: (a, b) => a + b,
+
+        __subsf3: (a, b) => a - b,
+        __subdf3: (a, b) => a - b,
+        __subtf3: (a, b) => a - b,
+        __subxf3: (a, b) => a - b,
+
+        __mulsf3: (a, b) => a * b,
+        __muldf3: (a, b) => a * b,
+        __multf3: (a, b) => a * b,
+        __mulxf3: (a, b) => a * b,
+
+        __divsf3: (a, b) => parseInt(a/b),
+        __divdf3: (a, b) => parseInt(a/b),
+        __divtf3: (a, b) => parseInt(a/b),
+        __divxf3: (a, b) => parseInt(a/b),
+
+        __negsf2: a => -a,
+        __negdf2: a => -a,
+        __negtf2: a => -a,
+        __negxf2: a => -a,
+
+        __extendsfdf2: a => a,
+        __extenddftf2: a => a,
+        __extendsfxf2: a => a,
+        __extenddftf2: a => a,
+        __extenddfxf2: a => a,
+
+        __truncxfdf2: a => a,
+        __trunctfdf2: a => a,
+        __truncxfsf2: a => a,
+        __trunctfsf2: a => a,
+        __truncdfsf2: a => a,
+
+        __fixsfsi: a => parseInt(a),
+        __fixdfsi: a => parseInt(a),
+        __fixtfsi: a => parseInt(a),
+        __fixxfsi: a => parseInt(a),
+
+        __fixsfdi: a => parseInt(a),
+        __fixdfdi: a => parseInt(a),
+        __fixtfdi: a => parseInt(a),
+        __fixxfdi: a => parseInt(a),
+
+        __fixunssfsi: a => a > 0 ? parseInt(a) : 0,
+        __fixunsdfsi: a => a > 0 ? parseInt(a) : 0,
+        __fixunstfsi: a => a > 0 ? parseInt(a) : 0,
+        __fixunsxfsi: a => a > 0 ? parseInt(a) : 0,
+
+        __fixunssfdi: a => a > 0 ? parseInt(a) : 0,
+        __fixunsdfdi: a => a > 0 ? parseInt(a) : 0,
+        __fixunstfdi: a => a > 0 ? parseInt(a) : 0,
+        __fixunsxfdi: a => a > 0 ? parseInt(a) : 0,
+
+        __fixunssfti: a => a > 0 ? parseInt(a) : 0,
+        __fixunsdfti: a => a > 0 ? parseInt(a) : 0,
+        __fixunstfti: a => a > 0 ? parseInt(a) : 0,
+        __fixunsxfti: a => a > 0 ? parseInt(a) : 0,
+
+        __floatsisf: a => a,
+        __floatsidf: a => a,
+        __floatsitf: a => a,
+        __floatsixf: a => a,
+
+        __floatdisf: a => a,
+        __floatdidf: a => a,
+        __floatditf: a => a,
+        __floatdixf: a => a,
+
+        __cmpsf2: (a, b) => a > b ? 1 : a < b ? -1 : 0,
+        __cmpdf2: (a, b) => a > b ? 1 : a < b ? -1 : 0,
+        __cmptf2: (a, b) => a > b ? 1 : a < b ? -1 : 0,
+        
+        __unordsf2: (a, b) => isNaN(a) || isNaN(b) ? 1 : 0,
+        __unorddf2: (a, b) => isNaN(a) || isNaN(b) ? 1 : 0,
+        __unordtf2: (a, b) => isNaN(a) || isNaN(b) ? 1 : 0,
+
+        __eqsf2: (a, b) => a == b ? 0 : 1,
+        __eqdf2: (a, b) => a == b ? 0 : 1,
+        __eqtf2: (a, b) => a == b ? 0 : 1,
+
+        __nesf2: (a, b) => !(a == b),
+        __nedf2: (a, b) => !(a == b),
+        __netf2: (a, b) => !(a == b),
+
+        __gesf2: (a, b) => a >= b ? 1 : -1,
+        __gedf2: (a, b) => a >= b ? 1 : -1,
+        __getf2: (a, b) => a >= b ? 1 : -1,
+
+        __ltsf2: (a, b) => a < b ? -1 : 1,
+        __ltdf2: (a, b) => a < b ? -1 : 1,
+        __lttf2: (a, b) => a < b ? -1 : 1,
+
+        __lesf2: (a, b) => a <= b ? -1 : 1,
+        __ledf2: (a, b) => a <= b ? -1 : 1,
+        __letf2: (a, b) => a <= b ? -1 : 1,
+
+        __gtsf2: (a, b) => a > b ? 1 : -1,
+        __gtdf2: (a, b) => a > b ? 1 : -1,
+        __gttf2: (a, b) => a > b ? 1 : -1,
+
+        __floatunsitf: a => a,
+
         _start() {},
     },
 }
