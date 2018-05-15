@@ -77,6 +77,17 @@ void MojoRead(const v8::FunctionCallbackInfo<v8::Value> &info) {
   info.GetReturnValue().Set(ab);
 }
 
+void MojoWrite(const v8::FunctionCallbackInfo<v8::Value> &info) {
+  int32_t fd = info[0]->Int32Value();
+  v8::ArrayBuffer* buffer = v8::ArrayBuffer::Cast(*info[1]);
+  size_t size = buffer->GetContents().ByteLength();
+  std::vector<uint8_t> bytes(size);
+
+  memcpy(bytes.data(), buffer->GetContents().Data(), size);
+
+  system_calls_ptr->Write(fd, bytes);
+}
+
 void MojoClose(const v8::FunctionCallbackInfo<v8::Value> &info) {
   int32_t fd = info[0]->Int32Value();
   system_calls_ptr->Close(fd);
@@ -202,6 +213,8 @@ int main(int argc, char **argv) {
               v8::FunctionTemplate::New(isolate, MojoLog));
     libc->Set(v8::String::NewFromUtf8(isolate, "exit"),
               v8::FunctionTemplate::New(isolate, MojoExit));
+    libc->Set(v8::String::NewFromUtf8(isolate, "write"),
+              v8::FunctionTemplate::New(isolate, MojoWrite));
 
     // Setup the JS script
     v8::Local<v8::Context> context = v8::Context::New(isolate, NULL, global);

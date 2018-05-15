@@ -63,6 +63,17 @@ public:
     std::move(callback).Run(vec);
   }
 
+  void Write(int64_t fd, const std::vector<unsigned char>& buf, WriteCallback callback) override {
+    const unsigned char * start = buf.data();
+    size_t numBytes = buf.size();
+    
+    ssize_t len = write(fd, start, numBytes);
+
+    DLOG_IF(WARNING, len < 0) << "Error Writing to FD:" << fd;
+    
+    std::move(callback).Run();
+  }
+
   void Exit(int64_t _exitCode, ExitCallback callback) override {
     exitCode = _exitCode;
     quitClosure.Run();

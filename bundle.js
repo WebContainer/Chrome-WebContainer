@@ -5,8 +5,8 @@ log("WebContainer::Init")
 __GLOBAL__.window = {}
 
 const {TextEncoder, TextDecoder} = require('text-encoding-shim')
-const hexdump = require('hexdump-js')
-
+// const hexdump = require('hexdump-js')
+const syscalls = require('./syscalls.js')
 const Utf8ArrayToStr = require('./src/Utf8ArrayToStr')
 
 const memory = new WebAssembly.Memory({initial: 2})
@@ -19,6 +19,8 @@ const STACK_BEGIN = 10000
 // The heap grows upward to te page break.
 buffer[1] = STACK_BEGIN
 
+const PAGE_SIZE = 64 * 1042
+
 // Allocate free space on the heap.
 let malloc_offset = STACK_BEGIN + 1
 function malloc(s) {
@@ -26,11 +28,6 @@ function malloc(s) {
     malloc_offset = malloc_offset + s
     return next
 }
-const __NR_openat = 56
-const __NR_read = 63
-const __NR_close = 57
-const __NR_writev = 66
-const __NR_ioctl = 29
 
 function nullTerminatedString(i) {
     let s = ""
@@ -39,6 +36,43 @@ function nullTerminatedString(i) {
         i++
     }
     return s
+}
+
+const IOCTL = {
+    TIOCGWINSZ: 0x5413
+}
+
+function ioctl_TIOCGWINSZ(structPtr) {
+    // http://www.delorie.com/djgpp/doc/libc/libc_495.html
+    
+    const winsize = new Uint16Array(buffer.slice(structPtr, structPtr + 8).buffer)
+
+    winsize[0] = 30 /* rows, in characters */
+    winsize[1] = 60 /* columns, in characters */
+    winsize[2] = 1000 /* horizontal size, pixels */
+    winsize[3] = 1000 /* vertical size, pixels */
+
+    return 0
+}
+
+function ioctl(fd, req, ...args) {
+    switch(req) {
+    case IOCTL.TIOCGWINSZ: {
+        const [structPtr] = args
+        ioctl_TIOCGWINSZ(structPtr)
+    }; break
+    default:
+        return 0
+    }
+}
+
+function brk(addrPtr) {
+    // http://man7.org/linux/man-pages/man2/brk.2.html
+    if (memory.buffer.byteLength < addrPtr) {
+        const newPages = Math.ceil(addrPtr - memory.buffer.byteLength) / PAGE_SIZE
+        memory.grow(newPages)
+    }
+    return 0
 }
 
 const imports = {
@@ -55,8 +89,9 @@ const imports = {
         },
         __syscall: (syscallno, argsPointer) => {
             const args = new Int32Array(buffer.slice(argsPointer, argsPointer + 4 * 7).buffer)
-            switch (syscallno) {
-                case __NR_openat: {
+            const {name} = syscalls[syscallno]
+            switch (name) {
+                case 'openat': {
                     const relfd = args[0] // "relative" fd to openat
                     const filenamePtr = args[1]
                     const filename = nullTerminatedString(filenamePtr)
@@ -65,7 +100,7 @@ const imports = {
                     const fd = wlibc.open(filename)
                     return fd
                 }; break;
-                case __NR_read: {
+                case 'read': {
                     const [fd, ptr, count] = args
                     const data = wlibc.read(fd, count)
                     const bufa = new Uint8Array(data)
@@ -75,23 +110,56 @@ const imports = {
                     }
                     return bufa.length;
                 }; break;
-                case __NR_close: {
+                case 'close': {
                     const [fd] = args
                     return wlibc.close(fd)
                 }; break;
+                case 'write': {
+                    const [fd, strptr, len] = args
+                    return wlibc.write(fd, buffer.slice(strptr, strptr + len).buffer)
+                }; break
                 default: {
-                    print(`Don't know how to implement ${syscallno} with args ${args}`)
+                    print(`__syscall: ${name} args ${args}`)
                     return -1
                 }; break;
             }
         },
         __syscall1: (syscallno, a) => {
-            print(`Syscall1 ${syscallno}, ${a}`)
+            const {name} = syscalls[syscallno]
+            switch(name) {
+            case 'brk': {
+                return brk(a)
+            }; break
+            }
+            log(`Syscall1 ${name}, ${a}`)
+        },
+        __syscall2: (syscallno, ...args) => {
+            const {name} = syscalls[syscallno]
+            log(`Syscall2 ${name}, ${args}`)
+        },
+        __syscall7: (syscallno, ...args) => {
+            const {name} = syscalls[syscallno]
+            log(`Syscall7 ${name}, ${args}`)
+        },
+        __syscall4: (syscallno, ...args) => {
+            const {name} = syscalls[syscallno]
+            log(`Syscall4 ${name}, ${args}`)
+        },
+        __syscall5: (syscallno, ...args) => {
+            const {name} = syscalls[syscallno]
+            log(`Syscall5 ${name}, ${args}`)
+        },
+        __syscall6: (syscallno, a, b, c, d, e, f) => {
+            const {name} = syscalls[syscallno]
+            switch(name) {
+            default:
+                log(`Syscall6 ${name}, ${a} ${b} ${c} ${d} ${e} ${f}`)
+            }
         },
         __syscall3: (syscallno, a, b, c) => {
-            print(`Syscall3 ${syscallno}, ${a}, ${b}, ${c}`)
-            switch (syscallno) {
-                case __NR_writev: {
+            const {name} = syscalls[syscallno]
+            switch (name) {
+                case 'writev': {
                     const fd = a;
                     const iovPtr = b;
                     const iovCnt = c;
@@ -102,14 +170,18 @@ const imports = {
                         const byteCount = iovs[i*2+1]
                         bytesWritten += byteCount
                         const data = new Uint8Array(buffer.slice(dataPtr, dataPtr + byteCount).buffer)
-                        let s = ""
-                        for (let j = 0; j < byteCount; j++) {
-                            s += String.fromCharCode(data[j])
-                        }
-                        print(s)
+                        // print(s)
+                        wlibc.write(fd, data.buffer);
                     }
                     
                     return bytesWritten
+                }; break;
+                case 'ioctl': {
+                    return ioctl(a, b, c)
+                }; break
+                default: {
+                    log(`Syscall3 ${name}, ${a} ${b} ${c}`)
+                    return -1
                 }; break;
             }
         },

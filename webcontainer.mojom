@@ -13,4 +13,6 @@ interface SystemCalls {
     Log(string message) => ();
     [Sync]
     Exit(int64 exitCode) => ();
+    [Sync]
+    Write(int64 fd, array<uint8> bytes) => ();
 };
