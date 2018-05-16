@@ -88,11 +88,8 @@ function rt_sigprocmask(how, set, oldset, sigsetsize) {
     return 0 // LIES!
 }
 
-function writev(a, b, c) {
+function writev(fd, iovPtr, iovCnt) {
     const buffer = new Uint8Array(memory.buffer)
-    const fd = a;
-    const iovPtr = b;
-    const iovCnt = c;
     const iovs = new Uint32Array(buffer.slice(iovPtr, iovPtr + 8 * iovCnt).buffer)
     let bytesWritten = 0
     for (let i = 0; i < iovCnt; i++) {
@@ -105,6 +102,24 @@ function writev(a, b, c) {
     }
     
     return bytesWritten
+}
+
+function readv(fd, iovPtr, iovCnt) {
+    const buffer = new Uint8Array(memory.buffer)
+    const iovs = new Uint32Array(buffer.slice(iovPtr, iovPtr + 8 * iovCnt).buffer)
+    let bytesRead = 0
+    for (let i = 0; i < iovCnt; i++) {
+        const dataPtr = iovs[i*2+0]
+        const byteCount = iovs[i*2+1]
+        const data = new Uint8Array(wlibc.read(fd, byteCount))
+        for (let i = 0; i < data.byteLength; i++) {
+            buffer[dataPtr + i] = data[i]
+        }
+        bytesRead += data.byteLength;
+        if (bytesRead < data.byteLength)
+            break;
+    }
+    return bytesRead
 }
 
 function openat(args) {
@@ -353,6 +368,9 @@ const imports = {
             switch (name) {
                 case 'writev': {
                     return writev(...args)
+                }; break;
+                case 'readv': {
+                    return readv(...args)
                 }; break;
                 case 'ioctl': {
                     return ioctl(...args)
