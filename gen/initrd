@@ -10,12 +10,8 @@ const {TextEncoder, TextDecoder} = require('text-encoding-shim')
 const syscalls = require('./syscalls.js')
 const Utf8ArrayToStr = require('./src/Utf8ArrayToStr')
 
-<<<<<<< HEAD
-const memory = new WebAssembly.Memory({initial: 2})
-=======
 const memory = new WebAssembly.Memory({initial: 10})
 const buffer = new Uint8Array(memory.buffer)
->>>>>>> 1327a903efda8f0c7b2c4982593e392056542745
 
 const STACK_BEGIN = 100000
 
@@ -79,11 +75,7 @@ function brk(addrPtr) {
         dlog(`brk allocate ${newPages} new pages`)
         memory.grow(newPages)
     }
-<<<<<<< HEAD
     return 0 // success
-=======
-    return memory.buffer.byteLength
->>>>>>> 1327a903efda8f0c7b2c4982593e392056542745
 }
 
 function clone(a, b) {
@@ -327,15 +319,9 @@ const imports = {
             const {name} = syscalls[syscallno]
             dlog('__syscall6', name)
             switch(name) {
-<<<<<<< HEAD
             case 'mmap': {
                 return mmap(a, b, c, d, e, f)
             }; break
-=======
-                case 'mmap': {
-                    log(`${new Error().stack}`)
-                }; break;
->>>>>>> 1327a903efda8f0c7b2c4982593e392056542745
             default:
                 log(`Unknown __syscall6 ${name}, ${a} ${b} ${c} ${d} ${e} ${f}`)
                 log(`${new Error().stack}`)
