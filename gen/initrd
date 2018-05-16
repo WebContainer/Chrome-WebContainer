@@ -114,6 +114,9 @@ function openat(args) {
     const flags = args[2]
     const mode = args[3]
     const fd = wlibc.open(filename)
+    dlog(`filenamePtr: ${filenamePtr}`)
+    dlog(`openat filename:${filename} fd:${fd} mode:${mode} flags:${flags}`)
+    
     return fd
 }
 
@@ -138,6 +141,17 @@ function write(args) {
 function close(args) {
     const [fd] = args
     return wlibc.close(fd)
+}
+
+function clock_gettime(a, b) {
+    dlog(`clock_gettime: ${a}, ${b}`)
+    const now = Date.now()
+    const sec = parseInt(now/1000)
+    const nan = now % 1000
+    const buffer = new Uint32Array(memory.buffer.slice(b))
+    buffer[0] = sec
+    buffer[1] = nan * 1e6
+    return 0
 }
 
 const mmap_flags = {
@@ -190,7 +204,7 @@ function mmap(ptr_addr, size_t_len, int_prot, int_flags, int_fd, off_t_offset) {
         if ((2**i & int_flags) && mmap_flags[2**i]) dlog(mmap_flags[2**i])
     }
 
-    if (ptr_addr == 0 && int_fd == -1 && size_t_len < PAGE_SIZE) {
+    if (ptr_addr == 0 && int_fd == -1) {
         const new_pages = Math.ceil(65536/PAGE_SIZE)
         dlog(`mmap allocate ${new_pages} new pages`)
         const old_size = memory.grow(new_pages)
@@ -280,6 +294,9 @@ const imports = {
             case 'clone': {
                 return clone(a, b)
             }; break
+            case 'clock_gettime': {
+                return clock_gettime(a, b)
+            }; break
             default:
                 log(`Unknown __syscall2 ${name}, ${a} ${b}`)
                 log(`${new Error().stack}`)
@@ -300,6 +317,9 @@ const imports = {
             switch(name) {
             case 'rt_sigprocmask': {
                 return rt_sigprocmask(...args)
+            }; break
+            case 'openat': {
+                return openat(args)
             }; break
             default:
                 log(`Unknown __syscall4 ${name}, ${args}`)
@@ -327,18 +347,21 @@ const imports = {
                 log(`${new Error().stack}`)
             }
         },
-        __syscall3: (syscallno, a, b, c) => {
+        __syscall3: (syscallno, ...args) => {
             const {name} = syscalls[syscallno]
             dlog('__syscall3', name)
             switch (name) {
                 case 'writev': {
-                    return writev(a, b, c)
+                    return writev(...args)
                 }; break;
                 case 'ioctl': {
-                    return ioctl(a, b, c)
+                    return ioctl(...args)
                 }; break
+                case 'read': {
+                    return read(args)
+                }
                 default: {
-                    log(`Unknown __syscall3 ${name}, ${a} ${b} ${c}`)
+                    log(`Unknown __syscall3 ${name}, ${args}`)
                     log(`${new Error().stack}`)
                     return -1
                 }
