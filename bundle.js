@@ -9,16 +9,17 @@ const {TextEncoder, TextDecoder} = require('text-encoding-shim')
 const syscalls = require('./syscalls.js')
 const Utf8ArrayToStr = require('./src/Utf8ArrayToStr')
 
-const memory = new WebAssembly.Memory({initial: 2})
+const memory = new WebAssembly.Memory({initial: 10})
+const buffer = new Uint8Array(memory.buffer)
 
-const STACK_BEGIN = 10000
+const STACK_BEGIN = 100000
 
 // The stack/heap seaparator exists here.
 // The stack grows downwards to zero.
 // The heap grows upward to te page break.
 // buffer[1] = STACK_BEGIN
 
-const PAGE_SIZE = 64 * 1042
+const PAGE_SIZE = 64 * 1024
 
 // Allocate free space on the heap.
 let malloc_offset = STACK_BEGIN + 1
@@ -243,6 +244,7 @@ const imports = {
             }; break
             default:
                 log(`Unknown __syscall: ${name} args ${args}`)
+                log(`${new Error().stack}`)
                 return -1
             }
         },
@@ -255,6 +257,7 @@ const imports = {
             }; break
             default:
                 log(`Unknown __syscall0 ${name}`)
+                log(`${new Error().stack}`)
             }
         },
         __syscall1: (syscallno, a) => {
@@ -266,6 +269,7 @@ const imports = {
             }; break
             default:
                 log(`Unknown __syscall1 ${name}, ${a}`)
+                log(`${new Error().stack}`)
             }
         },
         __syscall2: (syscallno, a, b) => {
@@ -277,6 +281,7 @@ const imports = {
             }; break
             default:
                 log(`Unknown __syscall2 ${name}, ${a} ${b}`)
+                log(`${new Error().stack}`)
             }
         },
         __syscall7: (syscallno, ...args) => {
@@ -285,6 +290,7 @@ const imports = {
             switch(name) {
             default:    
                 log(`Unknown __syscall7 ${name}, ${args}`)
+                log(`${new Error().stack}`)
             }
         },
         __syscall4: (syscallno, ...args) => {
@@ -296,6 +302,7 @@ const imports = {
             }; break
             default:
                 log(`Unknown __syscall4 ${name}, ${args}`)
+                log(`${new Error().stack}`)
             }
         },
         __syscall5: (syscallno, ...args) => {
@@ -304,6 +311,7 @@ const imports = {
             switch(name) {
             default:    
                 log(`Unknown __syscall5 ${name}, ${args}`)
+                log(`${new Error().stack}`)
             }
         },
         __syscall6: (syscallno, a, b, c, d, e, f) => {
@@ -315,6 +323,7 @@ const imports = {
             }; break
             default:
                 log(`Unknown __syscall6 ${name}, ${a} ${b} ${c} ${d} ${e} ${f}`)
+                log(`${new Error().stack}`)
             }
         },
         __syscall3: (syscallno, a, b, c) => {
@@ -329,9 +338,16 @@ const imports = {
                 }; break
                 default: {
                     log(`Unknown __syscall3 ${name}, ${a} ${b} ${c}`)
+                    log(`${new Error().stack}`)
                     return -1
                 }
             }
+        },
+        __cxa_allocate_exception: (size) => {
+            dlog(`__cxa_allocate_exception: ${size}`)
+        },
+        __cxa_throw: (exception, tinfo, dest) => {
+            dlog(`__cxa_throw: ${exception}, ${tinfo}, ${dest}`)
         },
 
         _start() {},
