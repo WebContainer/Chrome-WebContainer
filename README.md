@@ -33,9 +33,10 @@ Options:
 
 # Implementation
 
-Given a WASM binary. E.g. see [WASM C Example](https://github.com/groundwater/wasm-c-example). We create a libc-compatible system which that _wasm_ binary can interact with e.g. `open()` or `socket()`.
+The `webcontainerc` process, launched in a sandbox by the privileged `webcontainerd` process runs _wasm_ bundles.
+Bundles must be compiled with a compatible libc implementation, e.g. [musl-wasm](https://github.com/WebContainer/musl-wasm).
 
-Those _system calls_ requiring I/O will be brokered through a privileged process.
+The _system calls_ requiring I/O will be brokered through a privileged process.
 
 ```
 (sandbox)                 (privileged)
@@ -50,6 +51,8 @@ webcontainer                 broker
     |                          |
 ```
 
+See a compatible [WASM C Example](https://github.com/groundwater/wasm-c-example).
+
 # Status
 
 - [x] Compatible WASM toolchain in LLVM
@@ -57,8 +60,9 @@ webcontainer                 broker
 - [x] Mojo IPC Scaffolding to privileged process
 - [ ] Working Examples
   - [x] `open`/`read`/`close` currently in `test.wasm`
+  - [x] `printf`
   - [ ] `socket`/`listen`/`accept`
-- [ ] Sandboxed `webcontainerc` process
+- [x] Sandboxed `webcontainerc` process
 - [ ] Security policy in `webcontainerd` broker
   - [ ] filesystem restrictions
   - [ ] network restrictions
