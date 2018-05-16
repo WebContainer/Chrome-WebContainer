@@ -174,6 +174,7 @@ const imports = {
             }; break
             default:
                 log(`Unknown __syscall: ${name} args ${args}`)
+                log(`${new Error().stack}`)
                 return -1
             }
         },
@@ -186,6 +187,7 @@ const imports = {
             }; break
             default:
                 log(`Unknown __syscall0 ${name}`)
+                log(`${new Error().stack}`)
             }
         },
         __syscall1: (syscallno, a) => {
@@ -197,6 +199,7 @@ const imports = {
             }; break
             default:
                 log(`Unknown __syscall1 ${name}, ${a}`)
+                log(`${new Error().stack}`)
             }
         },
         __syscall2: (syscallno, a, b) => {
@@ -208,6 +211,7 @@ const imports = {
             }; break
             default:
                 log(`Unknown __syscall2 ${name}, ${a} ${b}`)
+                log(`${new Error().stack}`)
             }
         },
         __syscall7: (syscallno, ...args) => {
@@ -216,6 +220,7 @@ const imports = {
             switch(name) {
             default:    
                 log(`Unknown __syscall7 ${name}, ${args}`)
+                log(`${new Error().stack}`)
             }
         },
         __syscall4: (syscallno, ...args) => {
@@ -227,6 +232,7 @@ const imports = {
             }; break
             default:
                 log(`Unknown __syscall4 ${name}, ${args}`)
+                log(`${new Error().stack}`)
             }
         },
         __syscall5: (syscallno, ...args) => {
@@ -235,6 +241,7 @@ const imports = {
             switch(name) {
             default:    
                 log(`Unknown __syscall5 ${name}, ${args}`)
+                log(`${new Error().stack}`)
             }
         },
         __syscall6: (syscallno, a, b, c, d, e, f) => {
@@ -243,6 +250,7 @@ const imports = {
             switch(name) {
             default:
                 log(`Unknown __syscall6 ${name}, ${a} ${b} ${c} ${d} ${e} ${f}`)
+                log(`${new Error().stack}`)
             }
         },
         __syscall3: (syscallno, a, b, c) => {
@@ -257,6 +265,7 @@ const imports = {
                 }; break
                 default: {
                     log(`Unknown __syscall3 ${name}, ${a} ${b} ${c}`)
+                    log(`${new Error().stack}`)
                     return -1
                 }
             }
