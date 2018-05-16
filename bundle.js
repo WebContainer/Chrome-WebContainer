@@ -9,17 +9,17 @@ const {TextEncoder, TextDecoder} = require('text-encoding-shim')
 const syscalls = require('./syscalls.js')
 const Utf8ArrayToStr = require('./src/Utf8ArrayToStr')
 
-const memory = new WebAssembly.Memory({initial: 2})
+const memory = new WebAssembly.Memory({initial: 10})
 const buffer = new Uint8Array(memory.buffer)
 
-const STACK_BEGIN = 10000
+const STACK_BEGIN = 100000
 
 // The stack/heap seaparator exists here.
 // The stack grows downwards to zero.
 // The heap grows upward to te page break.
 buffer[1] = STACK_BEGIN
 
-const PAGE_SIZE = 64 * 1042
+const PAGE_SIZE = 64 * 1024
 
 // Allocate free space on the heap.
 let malloc_offset = STACK_BEGIN + 1
@@ -72,7 +72,7 @@ function brk(addrPtr) {
         const newPages = Math.ceil(addrPtr - memory.buffer.byteLength) / PAGE_SIZE
         memory.grow(newPages)
     }
-    return 0
+    return memory.buffer.byteLength
 }
 
 function clone(a, b) {
@@ -260,6 +260,12 @@ const imports = {
                     return -1
                 }
             }
+        },
+        __cxa_allocate_exception: (size) => {
+            dlog(`__cxa_allocate_exception: ${size}`)
+        },
+        __cxa_throw: (exception, tinfo, dest) => {
+            dlog(`__cxa_throw: ${exception}, ${tinfo}, ${dest}`)
         },
 
         _start() {},
