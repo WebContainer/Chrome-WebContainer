@@ -10,14 +10,13 @@ const syscalls = require('./syscalls.js')
 const Utf8ArrayToStr = require('./src/Utf8ArrayToStr')
 
 const memory = new WebAssembly.Memory({initial: 2})
-const buffer = new Uint8Array(memory.buffer)
 
 const STACK_BEGIN = 10000
 
 // The stack/heap seaparator exists here.
 // The stack grows downwards to zero.
 // The heap grows upward to te page break.
-buffer[1] = STACK_BEGIN
+// buffer[1] = STACK_BEGIN
 
 const PAGE_SIZE = 64 * 1042
 
@@ -30,6 +29,7 @@ function malloc(s) {
 }
 
 function nullTerminatedString(i) {
+    const buffer = new Uint8Array(memory.buffer)
     let s = ""
     while(buffer[i] !== 0) {
         s += String.fromCharCode(buffer[i])
@@ -44,7 +44,7 @@ const IOCTL = {
 
 function ioctl_TIOCGWINSZ(structPtr) {
     // http://www.delorie.com/djgpp/doc/libc/libc_495.html
-    
+    const buffer = new Uint8Array(memory.buffer)
     const winsize = new Uint16Array(buffer.slice(structPtr, structPtr + 8).buffer)
 
     winsize[0] = 30 /* rows, in characters */
@@ -70,9 +70,10 @@ function brk(addrPtr) {
     // http://man7.org/linux/man-pages/man2/brk.2.html
     if (memory.buffer.byteLength < addrPtr) {
         const newPages = Math.ceil(addrPtr - memory.buffer.byteLength) / PAGE_SIZE
+        dlog(`brk allocate ${newPages} new pages`)
         memory.grow(newPages)
     }
-    return 0
+    return 0 // success
 }
 
 function clone(a, b) {
@@ -86,6 +87,7 @@ function rt_sigprocmask(how, set, oldset, sigsetsize) {
 }
 
 function writev(a, b, c) {
+    const buffer = new Uint8Array(memory.buffer)
     const fd = a;
     const iovPtr = b;
     const iovCnt = c;
@@ -114,6 +116,7 @@ function openat(args) {
 }
 
 function read(args) {
+    const buffer = new Uint8Array(memory.buffer)
     const [fd, ptr, count] = args
     const data = wlibc.read(fd, count)
     const bufa = new Uint8Array(data)
@@ -125,6 +128,7 @@ function read(args) {
 }
 
 function write(args) {
+    const buffer = new Uint8Array(memory.buffer)
     const [fd, strptr, len] = args
     return wlibc.write(fd, buffer.slice(strptr, strptr + len).buffer)
 }
@@ -134,8 +138,71 @@ function close(args) {
     return wlibc.close(fd)
 }
 
+const mmap_flags = {
+    0: 'MAP_FILE',
+    0x01: 'MAP_SHARED',
+    0x02: 'MAP_PRIVATE',
+    0x03: 'MAP_SHARED_VALIDATE',
+    0x0f: 'MAP_TYPE',
+    0x10: 'MAP_FIXED',
+    0x20: 'MAP_ANON',
+    0x4000: 'MAP_NORESERVE',
+    0x0100: 'MAP_GROWSDOWN',
+    0x0800: 'MAP_DENYWRITE',
+    0x1000: 'MAP_EXECUTABLE',
+    0x2000: 'MAP_LOCKED',
+    0x8000: 'MAP_POPULATE',
+    0x10000: 'MAP_NONBLOCK',
+    0x20000: 'MAP_STACK',
+    0x40000: 'MAP_HUGETLB',
+    0x80000: 'MAP_SYNC',
+    26: 'MAP_HUGE_SHIFT',
+    0x3f: 'MAP_HUGE_MASK',
+    [(16 << 26)]: 'MAP_HUGE_64KB',
+    [(19 << 26)]: 'MAP_HUGE_512KB',
+    [(20 << 26)]: 'MAP_HUGE_1MB',
+    [(21 << 26)]: 'MAP_HUGE_2MB',
+    [(23 << 26)]: 'MAP_HUGE_8MB',
+    [(24 << 26)]: 'MAP_HUGE_16MB',
+    [(28 << 26)]: 'MAP_HUGE_256MB',
+    [(30 << 26)]: 'MAP_HUGE_1GB',
+    [(31 << 26)]: 'MAP_HUGE_2GB',
+    [(34 << 26)]: 'MAP_HUGE_16GB',  
+}
+const mmap_prop = {
+    0: 'PROT_NONE',
+    1: 'PROT_READ',
+    2: 'PROT_WRITE',
+    4: 'PROT_EXEC',
+}
+function mmap(ptr_addr, size_t_len, int_prot, int_flags, int_fd, off_t_offset) {
+    dlog(`ptr_addr: ${ptr_addr}, size_t_len: ${size_t_len}, int_prot: ${int_prot}, int_flags:${int_flags}, int_fd: ${int_fd}, off_t_offset: ${off_t_offset}`)
+    
+    if (!int_prot) dlog(mmap_prop[0])
+    for(i=0; i<3; i++) {
+        if ((2**i & int_prot) && mmap_prop[2**i]) dlog(mmap_prop[2**i])
+    }
+
+    if (!int_flags) dlog(mmap_flags[0])
+    for(i=0; i<29; i++) {
+        if ((2**i & int_flags) && mmap_flags[2**i]) dlog(mmap_flags[2**i])
+    }
+
+    if (ptr_addr == 0 && int_fd == -1 && size_t_len < PAGE_SIZE) {
+        const new_pages = Math.ceil(65536/PAGE_SIZE)
+        dlog(`mmap allocate ${new_pages} new pages`)
+        const old_size = memory.grow(new_pages)
+        dlog(`old number of pages ${old_size}`)
+        const new_start = old_size * PAGE_SIZE
+        dlog(`new page start ${new_start}`)
+        return new_start
+    } else {
+        throw new Error(`NOT YET IMPLEMENTED`)
+    }
+}
+
 // Allow dynamic turning on/off a tracer function
-var tracer = false
+var tracer = true
 function dlog(...args) {
     if (tracer) {
         log(args.join(' '))
@@ -146,6 +213,7 @@ const imports = {
     env: {
         memory,
         print: (arg) => {
+            const buffer = new Uint8Array(memory.buffer)
             let s = ""
             let i = arg
             while(buffer[i]) {
@@ -155,6 +223,7 @@ const imports = {
             wlibc.print(s)
         },
         __syscall: (syscallno, argsPointer) => {
+            const buffer = new Uint8Array(memory.buffer)
             // grab VAR_ARGS off the stack
             const args = new Int32Array(buffer.slice(argsPointer, argsPointer + 4 * 7).buffer)
             const {name} = syscalls[syscallno]
@@ -241,6 +310,9 @@ const imports = {
             const {name} = syscalls[syscallno]
             dlog('__syscall6', name)
             switch(name) {
+            case 'mmap': {
+                return mmap(a, b, c, d, e, f)
+            }; break
             default:
                 log(`Unknown __syscall6 ${name}, ${a} ${b} ${c} ${d} ${e} ${f}`)
             }
@@ -266,6 +338,14 @@ const imports = {
 
         trace(onOff) {
             tracer = onOff
+        },
+
+        __cxa_allocate_exception() {
+            return 0;
+        },
+
+        __cxa_throw() {
+            throw new Error()
         }
     },
 }
@@ -278,6 +358,7 @@ const argc = argv.length
 const argvPointers = new Uint32Array(new ArrayBuffer(argv.length * 4))
 var i = 0
 for(const arg of argv) {
+    const buffer = new Uint8Array(memory.buffer)
     const te = new TextEncoder()
     const be = te.encode(arg)
     const pt = malloc(be.byteLength + 1)
@@ -293,7 +374,7 @@ const st = malloc(argvPointers.byteLength)
 // Need to recast our 32-bit pointer buffer to 8-bit typed array
 // If we don't match the typed array sizes, weird stuff happens.
 // If we cast them both to 32-bit arrays, the *st* pointer will be wrong.
-buffer.set(new Uint8Array(argvPointers.buffer), st)
+new Uint8Array(memory.buffer).set(new Uint8Array(argvPointers.buffer), st)
 
 
 // Run WASM bundle
