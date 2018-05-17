@@ -188,12 +188,8 @@ function readv(fd, iovPtr, iovCnt) {
     return bytesRead
 }
 
-function openat(args) {
-    const relfd = args[0] // "relative" fd to openat
-    const filenamePtr = args[1]
+function openat(relfd, filenamePtr, flags, mode) {
     const filename = nullTerminatedString(filenamePtr)
-    const flags = args[2]
-    const mode = args[3]
 
     dlog(`openat filename:(${filename}) mode:(${mode}) flags:(${flags})`)
     const fd = wlibc.open(filename)
@@ -202,9 +198,8 @@ function openat(args) {
     return fd
 }
 
-function read(args) {
+function read(fd, ptr, count) {
     const buffer = new Uint8Array(memory.buffer)
-    const [fd, ptr, count] = args
 
     dlog(`read fd:${fd} ptr:${ptr} count:${count}`)
 
@@ -217,14 +212,12 @@ function read(args) {
     return bufa.length;
 }
 
-function write(args) {
+function write(fd, strptr, len) {
     const buffer = new Uint8Array(memory.buffer)
-    const [fd, strptr, len] = args
     return wlibc.write(fd, buffer.slice(strptr, strptr + len).buffer)
 }
 
-function close(args) {
-    const [fd] = args
+function close(fd) {
     return wlibc.close(fd)
 }
 
@@ -237,6 +230,10 @@ function clock_gettime(a, b) {
     buffer[0] = sec
     buffer[1] = nan * 1e6
     return 0
+}
+
+function invert_dictionary(obj) {
+    return Object.entries(obj).reduce((m, [k, v]) => ({...m, [v]: k}), {})
 }
 
 const mmap_flags = {
@@ -270,24 +267,26 @@ const mmap_flags = {
     [(31 << 26)]: 'MAP_HUGE_2GB',
     [(34 << 26)]: 'MAP_HUGE_16GB',  
 }
-const mmap_prop = {
-    0: 'PROT_NONE',
-    1: 'PROT_READ',
-    2: 'PROT_WRITE',
-    4: 'PROT_EXEC',
+const mmap_flags_reverse = invert_dictionary(mmap_flags)
+const mmap_prot = {
+    PROT_NONE: (1<<0),
+    PROT_READ: (1<<1),
+    PROT_WRITE: (1<<2),
+    PROT_EXEC: (1<<3),
 }
 function mmap(ptr_addr, size_t_len, int_prot, int_flags, int_fd, off_t_offset) {
     dlog(`ptr_addr: ${ptr_addr}, size_t_len: ${size_t_len}, int_prot: ${int_prot}, int_flags:${int_flags}, int_fd: ${int_fd}, off_t_offset: ${off_t_offset}`)
     
-    if (!int_prot) dlog(mmap_prop[0])
-    for(i=0; i<3; i++) {
-        if ((2**i & int_prot) && mmap_prop[2**i]) dlog(mmap_prop[2**i])
-    }
+    const readable = (int_prot & mmap_prot.PROT_READ) === mmap_prot.PROT_READ
+    const writeable = (int_prot & mmap_prot.PROT_WRITE) === mmap_prot.PROT_WRITE
+    const executable = (int_prot & mmap_prot.PROT_EXEC) === mmap_prot.PROT_EXEC
+    dlog(`prot: ${readable ? 'r' : '-'}${writeable ? 'w' : '-'}${executable ? 'x' : '-'}`)
 
-    if (!int_flags) dlog(mmap_flags[0])
-    for(i=0; i<29; i++) {
-        if ((2**i & int_flags) && mmap_flags[2**i]) dlog(mmap_flags[2**i])
-    }
+    Object.entries(mmap_flags_reverse).forEach(([flag, bits]) => {
+        if ((int_flags & bits) === bits) {
+            dlog(`mmap flag: ${flag}`)
+        }
+    })
 
     if (ptr_addr == 0 && int_fd == -1) {
         const new_pages = Math.ceil(65536/PAGE_SIZE)
@@ -303,10 +302,39 @@ function mmap(ptr_addr, size_t_len, int_prot, int_flags, int_fd, off_t_offset) {
 }
 
 // Allow dynamic turning on/off a tracer function
-var tracer = false
+var tracer = true
 function dlog(...args) {
     if (tracer) {
         log(args.join(' '))
+    }
+}
+
+const syscall_fns = {
+    brk,
+    clock_gettime,
+    clone,
+    close,
+    ioctl,
+    mmap,
+    openat,
+    read,
+    readv,
+    rt_sigaction,
+    rt_sigprocmask,
+    write,
+    writev,
+}
+
+function syscall(syscallno, ...args) {
+    const {name} = syscalls[syscallno]
+    dlog('__syscall', name)
+    const fn = syscall_fns[name]
+    if (fn) {
+        return fn(...args)
+    } else {
+        dlog(`Unknown syscall: ${name} args ${args}`)
+        dlog(`${new Error().stack}`)
+        return -1
     }
 }
 
@@ -327,140 +355,16 @@ const imports = {
             const buffer = new Uint8Array(memory.buffer)
             // grab VAR_ARGS off the stack
             const args = new Int32Array(buffer.slice(argsPointer, argsPointer + 4 * 7).buffer)
-            const {name} = syscalls[syscallno]
-            dlog('__syscall', name)
-            switch (name) {
-            case 'openat': {
-                return openat(args)
-            }; break;
-            case 'read': {
-                return read(args)
-            }; break;
-            case 'close': {
-                return close(args)
-            }; break;
-            case 'write': {
-                return write(args)
-            }; break
-            default:
-                dlog(`Unknown __syscall: ${name} args ${args}`)
-                dlog(`${new Error().stack}`)
-                return -1
-            }
+            syscall(syscallno, ...args)
         },
-        __syscall0: (syscallno) => {
-            const {name} = syscalls[syscallno]
-            dlog('__syscall0', name)
-            switch(name) {
-            case 'gettid': {
-                return 1
-            }; break
-            default:
-                dlog(`Unknown __syscall0 ${name}`)
-                dlog(`${new Error().stack}`)
-            }
-        },
-        __syscall1: (syscallno, a) => {
-            const {name} = syscalls[syscallno]
-            dlog('__syscall1', name)
-            switch(name) {
-            case 'brk': {
-                return brk(a)
-            }; break
-            case 'close': {
-                return close([a])
-            }
-            default:
-                dlog(`Unknown __syscall1 ${name}, ${a}`)
-                dlog(`${new Error().stack}`)
-            }
-        },
-        __syscall2: (syscallno, a, b) => {
-            const {name} = syscalls[syscallno]
-            dlog('__syscall2', name)
-            switch(name) {
-            case 'clone': {
-                return clone(a, b)
-            }; break
-            case 'clock_gettime': {
-                return clock_gettime(a, b)
-            }; break
-            default:
-                dlog(`Unknown __syscall2 ${name}, ${a} ${b}`)
-                dlog(`${new Error().stack}`)
-            }
-        },
-        __syscall7: (syscallno, ...args) => {
-            const {name} = syscalls[syscallno]
-            dlog('__syscall7', name)
-            switch(name) {
-            default:    
-                dlog(`Unknown __syscall7 ${name}, ${args}`)
-                dlog(`${new Error().stack}`)
-            }
-        },
-        __syscall4: (syscallno, ...args) => {
-            const {name} = syscalls[syscallno]
-            dlog('__syscall4', name)
-            switch(name) {
-            case 'rt_sigprocmask': {
-                return rt_sigprocmask(...args)
-            }; break
-            case 'rt_sigaction': {
-                return rt_sigaction(...args)
-            }; break
-            case 'openat': {
-                return openat(args)
-            }; break
-            default:
-                dlog(`Unknown __syscall4 ${name}, ${args}`)
-                dlog(`${new Error().stack}`)
-            }
-        },
-        __syscall5: (syscallno, ...args) => {
-            const {name} = syscalls[syscallno]
-            dlog('__syscall5', name)
-            switch(name) {
-            default:    
-                dlog(`Unknown __syscall5 ${name}, ${args}`)
-                dlog(`${new Error().stack}`)
-            }
-        },
-        __syscall6: (syscallno, a, b, c, d, e, f) => {
-            const {name} = syscalls[syscallno]
-            dlog('__syscall6', name)
-            switch(name) {
-            case 'mmap': {
-                return mmap(a, b, c, d, e, f)
-            }; break
-            default:
-                dlog(`Unknown __syscall6 ${name}, ${a} ${b} ${c} ${d} ${e} ${f}`)
-                dlog(`${new Error().stack}`)
-            }
-        },
-        __syscall3: (syscallno, ...args) => {
-            const {name} = syscalls[syscallno]
-            dlog('__syscall3', name)
-            switch (name) {
-                case 'writev': {
-                    return writev(...args)
-                }; break;
-                case 'readv': {
-                    return readv(...args)
-                }; break;
-                case 'ioctl': {
-                    return ioctl(...args)
-                }; break
-                case 'read': {
-                    return read(args)
-                }
-                default: {
-                    dlog(`Unknown __syscall3 ${name}, ${args}`)
-                    dlog(`${new Error().stack}`)
-                    return -1
-                }
-            }
-        },
+        __syscall0: syscall,
+        __syscall1: syscall,
+        __syscall2: syscall,
+        __syscall3: syscall,
+        __syscall4: syscall,
+        __syscall5: syscall,
+        __syscall6: syscall,
+        __syscall7: syscall,
         __cxa_allocate_exception: (size) => {
             dlog(`__cxa_allocate_exception: ${size}`)
         },
