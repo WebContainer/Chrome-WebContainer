@@ -5,6 +5,7 @@ log("WebContainer::Init")
 __GLOBAL__.window = {}
 
 const {TextEncoder, TextDecoder} = require('text-encoding-shim')
+const {parseArgsStringToArgv} = require('string-argv')
 // const hexdump = require('hexdump-js')
 const syscalls = require('./syscalls.js')
 const Utf8ArrayToStr = require('./src/Utf8ArrayToStr')
@@ -39,11 +40,67 @@ function nullTerminatedString(i) {
     return s
 }
 
-const IOCTL = {
-    TIOCGWINSZ: 0x5413
+const IOCTL_REQUESTS = {
+    0x5401: "TCGETS",
+    0x5402: "TCSETS",
+    0x5403: "TCSETSW",
+    0x5404: "TCSETSF",
+    0x5405: "TCGETA",
+    0x5406: "TCSETA",
+    0x5407: "TCSETAW",
+    0x5408: "TCSETAF",
+    0x5409: "TCSBRK",
+    0x540A: "TCXONC",
+    0x540B: "TCFLSH",
+    0x540C: "TIOCEXCL",
+    0x540D: "TIOCNXCL",
+    0x540E: "TIOCSCTTY",
+    0x540F: "TIOCGPGRP",
+    0x5410: "TIOCSPGRP",
+    0x5411: "TIOCOUTQ",
+    0x5412: "TIOCSTI",
+    0x5413: "TIOCGWINSZ",
+    0x5414: "TIOCSWINSZ",
+    0x5415: "TIOCMGET",
+    0x5416: "TIOCMBIS",
+    0x5417: "TIOCMBIC",
+    0x5418: "TIOCMSET",
+    0x5419: "TIOCGSOFTCAR",
+    0x541A: "TIOCSSOFTCAR",
+    0x541B: "FIONREAD",
+    FIONREAD: "TIOCINQ",
+    0x541C: "TIOCLINUX",
+    0x541D: "TIOCCONS",
+    0x541E: "TIOCGSERIAL",
+    0x541F: "TIOCSSERIAL",
+    0x5420: "TIOCPKT",
+    0x5421: "FIONBIO",
+    0x5422: "TIOCNOTTY",
+    0x5423: "TIOCSETD",
+    0x5424: "TIOCGETD",
+    0x5425: "TCSBRKP",
+    0x5427: "TIOCSBRK",
+    0x5428: "TIOCCBRK",
+    0x5429: "TIOCGSID",
+    0x542E: "TIOCGRS485",
+    0x542F: "TIOCSRS485",
+    0x80045430: "TIOCGPTN",
+    0x40045431: "TIOCSPTLCK",
+    0x80045432: "TIOCGDEV",
+    0x5432: "TCGETX",
+    0x5433: "TCSETX",
+    0x5434: "TCSETXF",
+    0x5435: "TCSETXW",
+    0x40045436: "TIOCSIG",
+    0x5437: "TIOCVHANGUP",
+    0x80045438: "TIOCGPKT",
+    0x80045439: "TIOCGPTLCK",
+    0x80045440: "TIOCGEXCL",
+    0x5441: "TIOCGPTPEER",
 }
 
 function ioctl_TIOCGWINSZ(structPtr) {
+    dlog(`ioctl_TIOCGWINSZ`)
     // http://www.delorie.com/djgpp/doc/libc/libc_495.html
     const buffer = new Uint8Array(memory.buffer)
     const winsize = new Uint16Array(buffer.slice(structPtr, structPtr + 8).buffer)
@@ -57,12 +114,14 @@ function ioctl_TIOCGWINSZ(structPtr) {
 }
 
 function ioctl(fd, req, ...args) {
-    switch(req) {
-    case IOCTL.TIOCGWINSZ: {
+    dlog(`ioctl: fd:${fd}, req:${req}, args:${args}`)
+    switch(IOCTL_REQUESTS[req]) {
+    case 'TIOCGWINSZ': {
         const [structPtr] = args
         ioctl_TIOCGWINSZ(structPtr)
     }; break
     default:
+        dlog(`unknown ioctl ${IOCTL_REQUESTS[req]}`)
         return 0
     }
 }
@@ -87,6 +146,10 @@ function rt_sigprocmask(how, set, oldset, sigsetsize) {
     return 0 // LIES!
 }
 
+function rt_sigaction() {
+    return 0 // LIES!
+}
+
 function writev(fd, iovPtr, iovCnt) {
     const buffer = new Uint8Array(memory.buffer)
     const iovs = new Uint32Array(buffer.slice(iovPtr, iovPtr + 8 * iovCnt).buffer)
@@ -106,11 +169,15 @@ function writev(fd, iovPtr, iovCnt) {
 function readv(fd, iovPtr, iovCnt) {
     const buffer = new Uint8Array(memory.buffer)
     const iovs = new Uint32Array(buffer.slice(iovPtr, iovPtr + 8 * iovCnt).buffer)
+    
     let bytesRead = 0
     for (let i = 0; i < iovCnt; i++) {
         const dataPtr = iovs[i*2+0]
         const byteCount = iovs[i*2+1]
         const data = new Uint8Array(wlibc.read(fd, byteCount))
+
+        dlog(`readv fd:${fd} ptr:${dataPtr} count:${byteCount}`)
+    
         for (let i = 0; i < data.byteLength; i++) {
             buffer[dataPtr + i] = data[i]
         }
@@ -127,9 +194,10 @@ function openat(args) {
     const filename = nullTerminatedString(filenamePtr)
     const flags = args[2]
     const mode = args[3]
+
+    dlog(`openat filename:(${filename}) mode:(${mode}) flags:(${flags})`)
     const fd = wlibc.open(filename)
-    dlog(`filenamePtr: ${filenamePtr}`)
-    dlog(`openat filename:${filename} fd:${fd} mode:${mode} flags:${flags}`)
+    dlog(`fd=${fd}`)
     
     return fd
 }
@@ -137,6 +205,9 @@ function openat(args) {
 function read(args) {
     const buffer = new Uint8Array(memory.buffer)
     const [fd, ptr, count] = args
+
+    dlog(`read fd:${fd} ptr:${ptr} count:${count}`)
+
     const data = wlibc.read(fd, count)
     const bufa = new Uint8Array(data)
     
@@ -232,7 +303,7 @@ function mmap(ptr_addr, size_t_len, int_prot, int_flags, int_fd, off_t_offset) {
 }
 
 // Allow dynamic turning on/off a tracer function
-var tracer = true
+var tracer = false
 function dlog(...args) {
     if (tracer) {
         log(args.join(' '))
@@ -272,8 +343,8 @@ const imports = {
                 return write(args)
             }; break
             default:
-                log(`Unknown __syscall: ${name} args ${args}`)
-                log(`${new Error().stack}`)
+                dlog(`Unknown __syscall: ${name} args ${args}`)
+                dlog(`${new Error().stack}`)
                 return -1
             }
         },
@@ -285,8 +356,8 @@ const imports = {
                 return 1
             }; break
             default:
-                log(`Unknown __syscall0 ${name}`)
-                log(`${new Error().stack}`)
+                dlog(`Unknown __syscall0 ${name}`)
+                dlog(`${new Error().stack}`)
             }
         },
         __syscall1: (syscallno, a) => {
@@ -296,9 +367,12 @@ const imports = {
             case 'brk': {
                 return brk(a)
             }; break
+            case 'close': {
+                return close([a])
+            }
             default:
-                log(`Unknown __syscall1 ${name}, ${a}`)
-                log(`${new Error().stack}`)
+                dlog(`Unknown __syscall1 ${name}, ${a}`)
+                dlog(`${new Error().stack}`)
             }
         },
         __syscall2: (syscallno, a, b) => {
@@ -312,8 +386,8 @@ const imports = {
                 return clock_gettime(a, b)
             }; break
             default:
-                log(`Unknown __syscall2 ${name}, ${a} ${b}`)
-                log(`${new Error().stack}`)
+                dlog(`Unknown __syscall2 ${name}, ${a} ${b}`)
+                dlog(`${new Error().stack}`)
             }
         },
         __syscall7: (syscallno, ...args) => {
@@ -321,8 +395,8 @@ const imports = {
             dlog('__syscall7', name)
             switch(name) {
             default:    
-                log(`Unknown __syscall7 ${name}, ${args}`)
-                log(`${new Error().stack}`)
+                dlog(`Unknown __syscall7 ${name}, ${args}`)
+                dlog(`${new Error().stack}`)
             }
         },
         __syscall4: (syscallno, ...args) => {
@@ -332,12 +406,15 @@ const imports = {
             case 'rt_sigprocmask': {
                 return rt_sigprocmask(...args)
             }; break
+            case 'rt_sigaction': {
+                return rt_sigaction(...args)
+            }; break
             case 'openat': {
                 return openat(args)
             }; break
             default:
-                log(`Unknown __syscall4 ${name}, ${args}`)
-                log(`${new Error().stack}`)
+                dlog(`Unknown __syscall4 ${name}, ${args}`)
+                dlog(`${new Error().stack}`)
             }
         },
         __syscall5: (syscallno, ...args) => {
@@ -345,8 +422,8 @@ const imports = {
             dlog('__syscall5', name)
             switch(name) {
             default:    
-                log(`Unknown __syscall5 ${name}, ${args}`)
-                log(`${new Error().stack}`)
+                dlog(`Unknown __syscall5 ${name}, ${args}`)
+                dlog(`${new Error().stack}`)
             }
         },
         __syscall6: (syscallno, a, b, c, d, e, f) => {
@@ -357,8 +434,8 @@ const imports = {
                 return mmap(a, b, c, d, e, f)
             }; break
             default:
-                log(`Unknown __syscall6 ${name}, ${a} ${b} ${c} ${d} ${e} ${f}`)
-                log(`${new Error().stack}`)
+                dlog(`Unknown __syscall6 ${name}, ${a} ${b} ${c} ${d} ${e} ${f}`)
+                dlog(`${new Error().stack}`)
             }
         },
         __syscall3: (syscallno, ...args) => {
@@ -378,8 +455,8 @@ const imports = {
                     return read(args)
                 }
                 default: {
-                    log(`Unknown __syscall3 ${name}, ${args}`)
-                    log(`${new Error().stack}`)
+                    dlog(`Unknown __syscall3 ${name}, ${args}`)
+                    dlog(`${new Error().stack}`)
                     return -1
                 }
             }
@@ -407,37 +484,40 @@ const imports = {
     },
 }
 
-// Setup `main(int argc, char ** argv)`
-// We have to write all the argv arguments to the head with our custom malloc.
-// There is a lot of ArrayBuffer magic.
-const argv = ["wasm", ...(__WASMARGS__.split(/\s+/))]
-const argc = argv.length
-const argvPointers = new Uint32Array(new ArrayBuffer(argv.length * 4))
-var i = 0
-for(const arg of argv) {
-    const buffer = new Uint8Array(memory.buffer)
-    const te = new TextEncoder()
-    const be = te.encode(arg)
-    const pt = malloc(be.byteLength + 1)
-    
-    // place each string on the heap
-    buffer.set(be, pt)
-    
-    // record the pointer to another buffer
-    // we will place this on the heap later
-    argvPointers[i++] = pt
-}
-const st = malloc(argvPointers.byteLength)
-// Need to recast our 32-bit pointer buffer to 8-bit typed array
-// If we don't match the typed array sizes, weird stuff happens.
-// If we cast them both to 32-bit arrays, the *st* pointer will be wrong.
-new Uint8Array(memory.buffer).set(new Uint8Array(argvPointers.buffer), st)
-
-
 // Run WASM bundle
 const o = WebAssembly
 .instantiate(__WASMBUNDLE__, imports)
 .then(r => {
+    const { malloc } = r.instance.exports
+
+    // Setup `main(int argc, char ** argv)`
+    // We have to write all the argv arguments to the head with our custom malloc.
+    // There is a lot of ArrayBuffer magic.
+    const argv = [__WASMBUNDLE_NAME__, ...parseArgsStringToArgv(__WASMARGS__)]
+    const argc = argv.length
+    const argvPointers = new Uint32Array(new ArrayBuffer(argv.length * 4))
+    
+    dlog(`argc: ${argc}`)
+    dlog(`argv: (${argv.join('), (')})`)
+    
+    var i = 0
+    for(const arg of argv) {
+        const te = new TextEncoder()
+        const be = te.encode(arg)
+        const pt = malloc(be.byteLength + 1)
+        
+        // place each string on the heap
+        new Uint8Array(memory.buffer).set(be, pt)
+        
+        // record the pointer to another buffer
+        // we will place this on the heap later
+        argvPointers[i++] = pt
+    }
+    const st = malloc(argvPointers.byteLength)
+    // Need to recast our 32-bit pointer buffer to 8-bit typed array
+    // If we don't match the typed array sizes, weird stuff happens.
+    // If we cast them both to 32-bit arrays, the *st* pointer will be wrong.
+    new Uint8Array(memory.buffer).set(new Uint8Array(argvPointers.buffer), st)
     log("WebContainer::Begin")
     const exit = r.instance.exports.main(argc, st)
     log("WebContainer::Exit Code(" + exit + ")")

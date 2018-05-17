@@ -232,6 +232,9 @@ int main(int argc, char **argv) {
     memcpy(wasmArrayBuffer->GetContents().Data(), wasmbuff.data(), file_size);
     context->Global()->Set(v8::String::NewFromUtf8(isolate, "__WASMBUNDLE__"),
                            wasmArrayBuffer);
+    
+    context->Global()->Set(v8::String::NewFromUtf8(isolate, "__WASMBUNDLE_NAME__"), 
+                           v8::String::NewFromUtf8(isolate, fp.value().c_str()));
 
     // The CLI switch --wasm-args=... will be passed to our wasm binary as argv values
     // Currently space-separated, and totally needs more work.

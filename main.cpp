@@ -157,7 +157,7 @@ int main(int argc, char **argv) {
   command_line.AppendSwitchASCII(
       "wasm-args",
       cmd->GetSwitchValueASCII("wasm-args"));
-
+  
   // Actually start child process with given command_line
   base::Process p = base::LaunchProcess(command_line, options);
   CHECK(p.IsValid());

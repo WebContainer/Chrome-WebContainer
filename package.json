@@ -21,6 +21,7 @@
     "browserify": "^16.2.2",
     "hexdump-js": "^0.1.0",
     "sprintf-js": "^1.1.1",
+    "string-argv": "0.0.2",
     "text-encoding-shim": "^1.0.0"
   }
 }
