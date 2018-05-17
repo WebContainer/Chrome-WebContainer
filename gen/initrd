@@ -24,10 +24,10 @@ const STACK_BEGIN = 100000
 const PAGE_SIZE = 64 * 1024
 
 // Allocate free space on the heap.
-let malloc_offset = STACK_BEGIN + 1
-function malloc(s) {
-    const next = malloc_offset
-    malloc_offset = malloc_offset + s
+let _malloc_offset = STACK_BEGIN + 1
+function _malloc(s) {
+    const next = _malloc_offset
+    _malloc_offset = _malloc_offset + s
     return next
 }
 
@@ -489,7 +489,7 @@ const imports = {
 const o = WebAssembly
 .instantiate(__WASMBUNDLE__, imports)
 .then(r => {
-    const { malloc } = r.instance.exports
+    const { malloc = _malloc } = r.instance.exports
 
     // Setup `main(int argc, char ** argv)`
     // We have to write all the argv arguments to the head with our custom malloc.
