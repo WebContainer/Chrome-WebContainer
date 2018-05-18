@@ -280,6 +280,14 @@ int main(int argc, char **argv) {
             .ToLocalChecked();
     v8::Local<v8::Script> script =
         v8::Script::Compile(context, source).ToLocalChecked();
+      
+    context->Global()->Set(
+      v8::String::NewFromUtf8(isolate, "__DEBUG__"),
+      v8::String::NewFromUtf8(
+        isolate, 
+        command_line->GetSwitchValueASCII("debug").c_str(), 
+        v8::NewStringType::kNormal).ToLocalChecked()
+    );
 
     // An ArrayBuffer of the WASM bundle injected into the JS context
     v8::Local<v8::ArrayBuffer> wasmArrayBuffer =

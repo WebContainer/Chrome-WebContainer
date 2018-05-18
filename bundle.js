@@ -302,7 +302,7 @@ function mmap(ptr_addr, size_t_len, int_prot, int_flags, int_fd, off_t_offset) {
 }
 
 // Allow dynamic turning on/off a tracer function
-var tracer = true
+var tracer = __DEBUG__ == 'trace'
 function dlog(...args) {
     if (tracer) {
         log(args.join(' '))

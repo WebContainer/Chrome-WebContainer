@@ -156,6 +156,12 @@ int main(int argc, char **argv) {
   channel.PrepareToPassClientHandleToChildProcess(&command_line,
                                                   &options.fds_to_remap);
 
+  // Forward debug switch
+  command_line.AppendSwitchASCII(
+    "debug",
+    cmd->GetSwitchValueASCII("debug")
+  );
+
   // setup the child process to launch to requested initrd and wasm bundles
   command_line.AppendSwitchPath(
       "initrd",
