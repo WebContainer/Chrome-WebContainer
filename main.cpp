@@ -21,6 +21,10 @@
 #include "mojo/edk/embedder/scoped_ipc_support.h"
 #include "mojo/public/cpp/bindings/binding.h"
 #include "mojo/public/cpp/system/wait.h"
+#include "mojo/public/cpp/system/handle.h"
+#include "mojo/public/cpp/system/platform_handle.h"
+
+#include "mojo/public/c/system/platform_handle.h"
 
 #include "webcontainer/webcontainer.mojom.h"
 #include "shared.h"
@@ -43,6 +47,13 @@ public:
     int fd = open(filepath.c_str(), O_RDONLY);
 
     std::move(callback).Run(fd);
+  }
+
+  void OpenHandle(const std::string &filepath, OpenHandleCallback callback) override {
+    DLOG(INFO) << "OpenHandle::Filepath: " << filepath;
+    int fd = open(filepath.c_str(), O_RDONLY);
+    mojo::ScopedHandle handle = mojo::WrapPlatformFile(fd);    
+    std::move(callback).Run(std::move(handle));
   }
 
   void Close(int64_t fd, CloseCallback callback) override {

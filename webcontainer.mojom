@@ -4,6 +4,8 @@ interface SystemCalls {
     [Sync]
     Open(string filepath) => (int64 fd);
     [Sync]
+    OpenHandle(string filepath) => (handle? fileHandle);
+    [Sync]
     Close(int64 fd) => ();
     [Sync]
     Read(int64 fd, int64 numBytes) => (array<uint8> bytes);

@@ -13,6 +13,7 @@
 #include "mojo/public/cpp/system/wait.h"
 #include "sandbox/mac/sandbox_compiler.h"
 #include "webcontainer/webcontainer.mojom.h"
+#include "mojo/public/cpp/system/platform_handle.h"
 
 #include "v8/include/libplatform/libplatform.h"
 #include "v8/include/v8.h"
@@ -54,10 +55,60 @@ void MojoOpen(const v8::FunctionCallbackInfo<v8::Value> &info) {
   info.GetReturnValue().Set(v8::Number::New(isolate, fd));
 }
 
+int openFileHandles_i = 3;
+std::map<int, base::PlatformFile> openFileHandles;
+
+void MojoOpenHandle(const v8::FunctionCallbackInfo<v8::Value> &info) {
+  v8::Isolate *isolate = info.GetIsolate();
+
+  v8::Local<v8::Value> arg0 = info[0];
+  v8::Local<v8::String> fileStr = arg0->ToString();
+  v8::String::Utf8Value utf8Str(isolate, fileStr);
+
+  char *charStr = *utf8Str;
+
+  DLOG(INFO) << "->OpenHandle";
+
+  mojo::ScopedHandle handle;
+  system_calls_ptr->OpenHandle(std::string(charStr), &handle);
+
+  DLOG(INFO) << "<-OpenHandleDone";
+  
+  // base::PlatformFile* file = nullptr;
+  base::PlatformFile platform_handle = base::kInvalidPlatformFile;
+
+  DLOG(INFO) << "->Unwrap";
+
+  //TODO check result
+  mojo::UnwrapPlatformFile(std::move(handle), &platform_handle);
+
+  openFileHandles[openFileHandles_i++] = platform_handle;
+
+  DLOG(INFO) << "<-Unwrap";
+
+  info.GetReturnValue().Set(v8::Number::New(isolate, openFileHandles_i - 1));
+}
+
 void MojoExit(const v8::FunctionCallbackInfo<v8::Value> &info) {
   int64_t exit_code = info[0]->Int32Value();
   continue_js_loop = false;
   system_calls_ptr->Exit(exit_code);
+}
+
+void MojoReadHandle(const v8::FunctionCallbackInfo<v8::Value> &info) {
+  int32_t fd = info[0]->Int32Value();
+  
+  v8::ArrayBuffer* ab = v8::ArrayBuffer::Cast(*info[1]);
+
+  int32_t size = info[2]->Int32Value();
+
+  // system_calls_ptr->Read(fd, size, &bytes);
+  base::PlatformFile pfile = openFileHandles[fd];
+  base::File file(pfile);
+
+  int bytesRead = file.Read(0, (char *) ab->GetContents().Data(), size);
+
+  info.GetReturnValue().Set(bytesRead);
 }
 
 void MojoRead(const v8::FunctionCallbackInfo<v8::Value> &info) {
@@ -205,6 +256,10 @@ int main(int argc, char **argv) {
               v8::FunctionTemplate::New(isolate, MojoOpen));
     libc->Set(v8::String::NewFromUtf8(isolate, "read"),
               v8::FunctionTemplate::New(isolate, MojoRead));
+    libc->Set(v8::String::NewFromUtf8(isolate, "openHandle"),
+              v8::FunctionTemplate::New(isolate, MojoOpenHandle));
+    libc->Set(v8::String::NewFromUtf8(isolate, "readHandle"),
+              v8::FunctionTemplate::New(isolate, MojoReadHandle));
     libc->Set(v8::String::NewFromUtf8(isolate, "close"),
               v8::FunctionTemplate::New(isolate, MojoClose));
     libc->Set(v8::String::NewFromUtf8(isolate, "print"),
